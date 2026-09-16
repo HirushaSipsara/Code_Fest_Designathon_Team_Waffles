@@ -1,19 +1,22 @@
-# AI design note
+# Intelligence design note
 
-## Genuine problem and technique
+## Offline technique
 
-Natural-language scene creation saves residents from translating an intention into several precise device controls. `AIService` calls the replaceable `AIProvider` interface; the current `OpenAICompatibleProvider` converts the request into a constrained `SceneProposal` JSON object. It receives only the request, supported prototype devices/actions, resident role and a small few-shot set from `backend/app/ai/seed_context.py`.
+LIVLINK's hackathon demo does not call an external LLM. Natural-language scene requests are matched against 15 transparent seeded intent groups, then converted into the same strict `SceneProposal` schema used by the scene workflow. Energy intelligence uses a seven-day baseline and deviation threshold; predictive maintenance uses a documented weighted risk score; learned automation counts actions that follow at least three of the last five arrival episodes.
 
-The output is parsed by Pydantic with `extra=forbid`, then checked deterministically against known device IDs, device/action compatibility, value ranges, and resident policy. The provider cannot call APIs for a device and has no database or device credentials.
+These are deterministic prototype techniques—not a trained model. They demonstrate the product workflow without an API key, network dependency, accuracy claim or hidden fallback.
 
-## Human control and fallback
+## Validation and human control
 
-The LLM produces a **proposal only**. A server-issued proposal ID is persisted before review; fabricated or modified client proposals cannot be confirmed. A resident reviews its trigger, conditions, actions and short explanation, then explicitly confirms it. Only the automation engine can call `DeviceService`. Unsupported, malformed, ambiguous, unsafe or unavailable AI responses yield a visible status and direct the resident to the existing manual drag-and-drop builder.
+Every generated scene is checked against known device IDs, device/action compatibility, value ranges and resident policy. The resident reviews a proposal before saving it. Insight suggestions are validated through the same scene and policy rules when accepted; an unsafe unlock action is rejected. Only the automation engine can call `DeviceService`.
+
+## Data and simulation
+
+The backend seeds realistic device telemetry, battery decline and arrival/action history. A background simulator publishes events to an in-process `asyncio.Queue`; the subscriber persists them and runs deterministic analyses. No physical hardware or external MQTT broker is connected.
 
 ## Limitations
 
-- Only source-prototype devices, arrival trigger, `time_after` condition and documented action ranges are supported.
-- An LLM can produce invalid, ambiguous or unavailable output; it is never trusted.
-- No AI key/model means no parsing, not a fake demo response.
-- The device layer is a backend simulator, not physical IoT hardware.
-- No LIVLINK-specific model has been trained.
+- The natural-language matcher supports only the documented seeded phrases and prototype devices.
+- Analytics demonstrate workflows; they do not claim learned accuracy or production prediction quality.
+- Device commands and sensor events are simulated.
+- Production could replace the event bus and seeded logic behind the existing interfaces without changing the UI workflow.

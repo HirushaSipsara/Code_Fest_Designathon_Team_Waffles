@@ -167,3 +167,276 @@ input[type=range] {
     transform: none;
   }
 }
+
+/* =========================================================================
+   Visual upgrade pass — presentation only. No layout format, no function,
+   no colour tokens were changed; everything below composes the existing
+   variables and only adds depth, motion and small responsive safety nets.
+   ========================================================================= */
+
+/* ---- fix: composer rows (input + mic + button) can overflow their card
+   on narrow phones once the larger accessible type scale is applied.
+   Wrapping them is the same row, same controls, just not clipped. ---- */
+@media (max-width: 480px) {
+  .row:has(> input[type="text"]:only-of-type),
+  .row:has(> input[type="email"]) {
+    flex-wrap: wrap;
+  }
+  .row:has(> input[type="text"]:only-of-type) > input[type="text"],
+  .row:has(> input[type="email"]) > input[type="email"] {
+    flex-basis: 100%;
+  }
+}
+
+/* ---- icon tiles get a touch of glassy depth instead of sitting flat ---- */
+.dev-ic, .stat-ic, .notif-ic, .m-ic, .scenehero .sic, .mark, .avatar,
+.ai-badge, .mic-btn, .icon-btn {
+  position: relative;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+:root[data-theme="dark"] .dev-ic, :root[data-theme="dark"] .stat-ic,
+:root[data-theme="dark"] .notif-ic, :root[data-theme="dark"] .m-ic,
+:root[data-theme="dark"] .scenehero .sic, :root[data-theme="dark"] .avatar,
+:root[data-theme="dark"] .mic-btn, :root[data-theme="dark"] .icon-btn {
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+
+/* ---- primary buttons: subtle top sheen + a slightly deeper resting
+   shadow so they read as the clear call to action on every screen ---- */
+.btn-primary, .persona-switch button.active, .chip.active {
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.btn-primary:hover {
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+
+/* ---- cards & tiles: gentle lift on hover for anything actually
+   clickable, so interactivity reads at a glance without new borders ---- */
+.chip:not(.active):hover, .dnd-chip:hover, .pill-toggle button:hover {
+  transform: translateY(-1px);
+}
+table.fleet tr:hover td {
+  box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.pass-card, .bill-card, .membership-row, .device-tile {
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+.pass-card:hover, .bill-card:hover, .membership-row:hover, .device-tile:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+/* ---- the AC dial gets a soft ambient ring so it feels like an
+   instrument rather than a flat conic-gradient circle ---- */
+.dial {
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 6%, transparent),
+              0 18px 40px -22px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ---- empty / placeholder states: a touch more presence so an empty
+   drop-zone or an empty filter result doesn't look like missing content ---- */
+.dnd-zone .dnd-empty {
+  border-radius: var(--radius-m);
+}
+.dnd-zone:not(.over) .dnd-empty::before {
+  content: "＋";
+  display: block;
+  font-size: 20px;
+  color: var(--border-strong);
+  margin-bottom: 4px;
+}
+#fleetEmpty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+/* ---- thin, themed scrollbars for the horizontally-scrolling tables
+   and chip rows instead of the bulky OS default ---- */
+.scrollx, .chip-row, .dnd-palette {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.scrollx::-webkit-scrollbar { height: 8px; width: 8px; }
+.scrollx::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+.scrollx::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- toast: a little glass depth so it separates from busy screens ---- */
+.toast {
+  -webkit-backdrop-filter: saturate(140%);
+  backdrop-filter: saturate(140%);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, .06) inset;
+}
+
+/* ---- notification / accordion rows: a slightly more tactile chevron
+   and a soft highlight strip on the open row for scan-ability ---- */
+.notif-row.open {
+  background: var(--surface-2);
+}
+.notif-row .chev {
+  transition: transform .18s ease, color .18s ease;
+}
+
+/* ---- scene, membership and pass status pills get a hairline ring so
+   they hold their own on busy, information-dense cards ---- */
+.pass-state, .tag {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip:not(.active):hover, .dnd-chip:hover, .pill-toggle button:hover {
+    transform: none;
+  }
+  .pass-card, .bill-card, .membership-row, .device-tile {
+    transition-duration: .001ms !important;
+  }
+}
+
+/* =========================================================================
+   Responsive safety net — small-phone pass. The app already has real
+   breakpoints (sidenav→tabbar at 860px, grid columns collapse at 760px/
+   980px), this only closes gaps the larger accessible type scale opened
+   up on the narrowest phones (~320–375px). No layout is rearranged on
+   tablet/desktop; every rule below is a no-op unless content genuinely
+   doesn't fit.
+   ========================================================================= */
+
+/* the scene-builder's per-device action row (icon + name + control +
+   remove) has no wrap, so a long device name plus a <select> can overflow
+   a narrow card. Wrapping is harmless when it already fits. */
+.dnd-action-row {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* generic safety net: on true small-phone widths, let any plain .row
+   wrap instead of forcing its children to overflow the viewport. */
+@media (max-width: 400px) {
+  .row {
+    flex-wrap: wrap;
+  }
+  .row > .grow {
+    min-width: 0;
+  }
+  .dial {
+    width: 180px;
+    height: 180px;
+  }
+  .dial-read .num {
+    font-size: 36px;
+  }
+  .qr-box {
+    width: 112px;
+    height: 112px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   AI Intelligence Panel — insight cards
+   --------------------------------------------------------------------------- */
+
+/* MQTT status dot */
+.mqtt-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--critical);
+  display: inline-block;
+  box-shadow: 0 0 6px var(--critical);
+  transition: background .3s, box-shadow .3s;
+}
+.mqtt-dot.connected {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+/* Insight cards */
+.insight-card {
+  padding: 16px 18px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: opacity .3s, transform .3s;
+}
+
+.insight-energy {
+  border-left: 4px solid #d97706;
+  background: linear-gradient(135deg, #fffbeb 0%, var(--surface) 40%);
+}
+.insight-maintenance {
+  border-left: 4px solid var(--critical);
+  background: linear-gradient(135deg, #fef2f2 0%, var(--surface) 40%);
+}
+.insight-automation {
+  border-left: 4px solid var(--accent);
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 40%);
+}
+
+/* Severity tags */
+.tag-critical {
+  background: var(--critical-bg, #fce7eb);
+  color: var(--critical);
+  font-weight: 700;
+}
+.tag-warning {
+  background: var(--warning-bg, #fdf0d9);
+  color: var(--warning);
+  font-weight: 700;
+}
+
+/* Stat row inside cards */
+.insight-stats {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.insight-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 72px;
+}
+.insight-stat-label {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-3); text-transform: uppercase; letter-spacing: .04em;
+}
+.insight-stat-value {
+  font-size: 18px; font-weight: 700;
+  font-family: var(--ff-d);
+}
+.critical-text { color: var(--critical); }
+.warning-text { color: #d97706; }
+
+/* Risk factor badges */
+.insight-factors {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+}
+.insight-factor {
+  font-size: 12px; padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+/* Automation scene preview */
+.insight-scene-preview {
+  padding: 12px 14px;
+  border-radius: var(--radius-s);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+}
+.insight-scene-preview b {
+  font-size: 15px;
+  display: block; margin-bottom: 6px;
+}
+
+/* Pulse animation for critical severity */
+.insight-pulse {
+  animation: insightPulse 2s ease-in-out infinite;
+}
+@keyframes insightPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 37, 70, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(185, 37, 70, .12); }
+}
+
+/* Placeholder */
+.insight-placeholder {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-s);
+}

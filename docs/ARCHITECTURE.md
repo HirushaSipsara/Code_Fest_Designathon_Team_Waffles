@@ -1,14 +1,20 @@
-# CP3 architecture
+# LIVLINK architecture
 
 ```text
-React/Vite
-    | REST
-FastAPI route
-    |-- AIService
-    |     `-- AIProvider interface
-    |           `-- OpenAICompatibleProvider -> configured LLM
-    |-- Pydantic schema validation
-    |-- deterministic policy validation
+Simulated device publisher
+    | in-process event bus (asyncio.Queue)
+    v
+Telemetry subscriber
+    |-- PostgreSQL telemetry / resident events
+    |-- energy baseline + anomaly threshold
+    |-- maintenance weighted risk score
+    `-- arrival pattern counter
+             |
+             v
+FastAPI local REST API <---- React/Vite
+    |-- insight list / dismiss / accept
+    |-- seeded natural-language scene matcher
+    |-- Pydantic + deterministic policy validation
     |-- SceneService -> PostgreSQL scenes/drafts/audit
     `-- AutomationEngine
            `-- DeviceService
@@ -17,7 +23,7 @@ FastAPI route
                                 `-- simulated AC / lights / curtains / lock / TV
 ```
 
-AI produces only a proposal. It has no database or device dependency. The application validates and stores the proposal; only confirmed scenes can reach the automation engine.
+The hackathon path is fully local and offline. The React app talks to the local FastAPI backend; this is the application API, not an external AI service. There is no API key, external LLM, Mosquitto broker or physical hardware.
 
 ## Device boundary
 
@@ -25,4 +31,4 @@ Hackathon: `DeviceService → MockDeviceAdapter`
 
 Future pilot: `DeviceService → MQTTDeviceAdapter → Real IoT Gateway`
 
-Automation depends on `DeviceService`, never the mock implementation. `MockDeviceAdapter` implements supported prototype state changes and returns an acknowledgement after simulated latency. No physical hardware or MQTT broker is claimed.
+Application services depend on `DeviceService`, never simulator internals. This keeps the production replacement path visible without pretending it is implemented now.

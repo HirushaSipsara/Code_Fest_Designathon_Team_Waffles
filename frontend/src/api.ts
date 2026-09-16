@@ -6,6 +6,19 @@ export type Device = { id: string; name: string; kind: string; room: string; sta
 export type SavedScene = { id: number; name: string; role: string; trigger: { type: string }; conditions: { type: string; value: string }[]; actions: Action[] };
 export type CommandResult = { device_id: string; action: string; transitions: ('requested' | 'acknowledged' | 'failed')[]; status: string; detail: string };
 
+// AI Intelligence types
+export type AIInsight = {
+  id: number;
+  category: 'energy' | 'maintenance' | 'automation';
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  body: Record<string, unknown>;
+  device_id: string | null;
+  status: string;
+  created_at: string | null;
+};
+export type MqttStatus = { connected: boolean; events_received: number; transport?: string };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, { headers: { 'Content-Type': 'application/json' }, ...init });
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `Request failed (${response.status})`);
@@ -14,6 +27,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const getDevices = () => request<{ devices: Device[] }>('/devices');
 export const getActivity = () => request<{ events: { id: number; message: string; category: string; created_at: string | null }[] }>('/activity');
 export const getScenes = () => request<{ scenes: SavedScene[] }>('/scenes');
+export const deleteScene = (id: number) => request<{ id: number; name: string; status: string }>(`/scenes/${id}`, { method: 'DELETE' });
 export const parseScene = (requestText: string, role: string) => request<Proposal>('/ai/scenes/parse', { method: 'POST', body: JSON.stringify({ request: requestText, role }) });
 export const confirmScene = (proposal: Proposal, role: string) => request<{ id: number; name: string }>('/scenes/confirm', { method: 'POST', body: JSON.stringify({ proposal, role }) });
 export const simulateArrival = () => request<{ executions: { scene_name: string; results: CommandResult[] }[] }>('/simulation/resident-arrival', { method: 'POST', body: JSON.stringify({}) });
+
+// AI Intelligence API
+export const getInsights = () => request<{ insights: AIInsight[] }>('/insights');
+export const dismissInsight = (id: number) => request<{ id: number; status: string }>(`/insights/${id}/dismiss`, { method: 'POST', body: '{}' });
+export const applyInsight = (id: number) => request<{ id: number; name: string; status: string }>(`/insights/${id}/apply`, { method: 'POST', body: '{}' });
+export const getMqttStatus = () => request<MqttStatus>('/mqtt/status');
+export const getTelemetry = (deviceId: string) => request<{ device_id: string; readings: { id: number; event_type: string; payload: Record<string, unknown>; timestamp: string | null }[] }>(`/telemetry/${deviceId}`);

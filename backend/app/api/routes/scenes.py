@@ -47,6 +47,17 @@ def scenes(db: Session = Depends(get_db)):
     return {"scenes": [{"id": s.id, "name": s.name, "role": s.role, "trigger": s.trigger, "conditions": s.conditions, "actions": s.actions} for s in db.query(Scene).order_by(Scene.id.desc()).all()]}
 
 
+@router.delete("/scenes/{scene_id}")
+def delete_scene(scene_id: int, db: Session = Depends(get_db)):
+    scene = db.get(Scene, scene_id)
+    if not scene:
+        raise HTTPException(status_code=404, detail="Saved scene not found.")
+    name = scene.name
+    db.delete(scene)
+    db.commit()
+    return {"id": scene_id, "name": name, "status": "deleted"}
+
+
 @router.post("/simulation/resident-arrival")
 def simulate_arrival(payload: ArrivalRequest, db: Session = Depends(get_db)):
     return handle_arrival(db, payload.at_time)

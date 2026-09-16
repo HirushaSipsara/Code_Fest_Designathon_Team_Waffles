@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import prototypeDocument from '../../livlink-prototype.html?raw';
 import polishStyles from './polish.css?inline';
-import { confirmScene, parseScene, simulateArrival, type Device, type Proposal } from './api';
+import { confirmScene, parseScene, simulateArrival, getDevices, getScenes, deleteScene, getInsights, dismissInsight, applyInsight, getMqttStatus, type Device, type Proposal, type SavedScene, type AIInsight } from './api';
 
 const styleText = prototypeDocument.match(/<style>([\s\S]*?)<\/style>/i)?.[1] ?? '';
 const bodyMarkup = prototypeDocument.match(/<body>([\s\S]*?)<script>/i)?.[1] ?? '';
@@ -11,6 +11,7 @@ declare global {
   interface Window {
     toast?: (message: string) => void;
     logActivity?: (message: string, category?: string) => void;
+    renderSavedDbScenes?: () => void;
   }
 }
 
@@ -58,6 +59,7 @@ function renderProposal(host: HTMLElement, proposal: Proposal, devices: Device[]
       <button class="btn btn-primary btn-sm" id="backendConfirmScene">Confirm &amp; Save</button>
       <button class="btn btn-ghost btn-sm" id="backendEditScene">Edit in visual builder</button>
     </div>
+    <p id="backendSceneSaveStatus" class="fine" role="status" aria-live="polite" style="display:none;margin-top:10px;"></p>
   </div>`;
   document.querySelector('#backendEditScene')?.addEventListener('click', () => document.querySelector('#dndPalette')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   document.querySelector('#backendConfirmScene')?.addEventListener('click', async event => {
@@ -66,9 +68,16 @@ function renderProposal(host: HTMLElement, proposal: Proposal, devices: Device[]
     button.textContent = 'Saving…';
     try {
       const saved = await confirmScene(proposal, currentRole());
-      button.textContent = 'Saved';
+      button.textContent = 'Saved ✓';
       window.toast?.(`${saved.name} confirmed and stored in PostgreSQL`);
       window.logActivity?.(`Scene confirmed — ${saved.name} (backend id ${saved.id})`, 'ok');
+      window.dispatchEvent(new Event('livlink:saved-scene'));
+      const status = document.querySelector<HTMLElement>('#backendSceneSaveStatus');
+      if (status) {
+        status.style.display = 'block';
+        status.style.color = 'var(--success)';
+        status.textContent = `✓ “${saved.name}” has been confirmed and saved (scene #${saved.id}).`;
+      }
       const controls = button.parentElement;
       controls?.insertAdjacentHTML('beforeend', '<button class="btn btn-ghost btn-sm" id="backendArrival">SIMULATION ONLY · Simulate Resident Arrival</button>');
       document.querySelector('#backendArrival')?.addEventListener('click', async arrivalEvent => {
@@ -90,9 +99,118 @@ function renderProposal(host: HTMLElement, proposal: Proposal, devices: Device[]
     } catch (error) {
       button.disabled = false;
       button.textContent = 'Confirm & Save';
-      window.toast?.(error instanceof Error ? error.message : 'Scene confirmation failed');
+      const message = error instanceof Error ? error.message : 'Scene confirmation failed';
+      const status = document.querySelector<HTMLElement>('#backendSceneSaveStatus');
+      if (status) {
+        status.style.display = 'block';
+        status.style.color = 'var(--danger)';
+        status.textContent = /already used|was not produced/i.test(message)
+          ? 'This draft was already saved or expired. Create a fresh draft before saving again.'
+          : message;
+      }
+      window.toast?.(message);
     }
   });
+}
+
+function savedSceneActionLabel(scene: SavedScene, devices: Device[]) {
+  return scene.actions.map(action => {
+    const suffix = action.value == null ? '' : action.action === 'set_temperature' ? ` → ${action.value}°C` : ` → ${action.value}%`;
+    return `${deviceName(action.device_id, devices)} · ${action.action.replace(/_/g, ' ')}${suffix}`;
+  });
+}
+
+function wireSavedScenesLibrary() {
+  let disposed = false;
+
+  const refresh = async () => {
+    const host = document.querySelector<HTMLElement>('#sceneCards');
+    if (!host) return;
+    try {
+      const [{ scenes }, { devices }] = await Promise.all([getScenes(), getDevices()]);
+      if (disposed) return;
+      host.querySelectorAll<HTMLElement>('[data-backend-scene]').forEach(card => card.remove());
+      scenes.forEach(scene => {
+        const actions = savedSceneActionLabel(scene, devices);
+        host.insertAdjacentHTML('beforeend', `<article class="card backend-saved-scene" data-backend-scene="${scene.id}">
+          <div class="row between" style="gap:10px;">
+            <div class="scenehero"><div class="sic">✨</div><div><b style="font-size:16.5px;">${escapeHtml(scene.name)}</b><div class="fine">Confirmed scene · #${scene.id}</div></div></div>
+            <span class="tag tag-build" data-scene-status><span class="dot"></span>Confirmed</span>
+          </div>
+          <div class="stack" style="gap:5px; margin:12px 0;">
+            ${actions.map(action => `<div class="fine">• ${escapeHtml(action)}</div>`).join('')}
+          </div>
+          <div class="row" style="gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" data-scene-run>Run now</button>
+            <button class="btn btn-ghost btn-sm" data-scene-edit>Edit</button>
+            <button class="btn btn-ghost btn-sm" data-scene-pause>Pause</button>
+            <button class="btn btn-danger btn-sm" data-scene-delete>Delete</button>
+          </div>
+        </article>`);
+        const card = host.querySelector<HTMLElement>(`[data-backend-scene="${scene.id}"]`);
+        const runButton = card?.querySelector<HTMLButtonElement>('[data-scene-run]');
+        const pauseButton = card?.querySelector<HTMLButtonElement>('[data-scene-pause]');
+        const status = card?.querySelector<HTMLElement>('[data-scene-status]');
+        runButton?.addEventListener('click', () => {
+          if (card?.dataset.paused === 'true') return;
+          runButton.disabled = true;
+          runButton.textContent = 'Requested…';
+          window.setTimeout(() => {
+            runButton.textContent = 'Acknowledged';
+            window.toast?.(`${scene.name} — ${scene.actions.length} simulated device action${scene.actions.length === 1 ? '' : 's'} acknowledged`);
+            window.logActivity?.(`${scene.name} scene ran — ${scene.actions.length} simulated device acknowledgement${scene.actions.length === 1 ? '' : 's'}`, 'ok');
+            window.setTimeout(() => {
+              runButton.textContent = 'Run now';
+              runButton.disabled = card?.dataset.paused === 'true';
+            }, 850);
+          }, 550);
+        });
+        card?.querySelector<HTMLButtonElement>('[data-scene-edit]')?.addEventListener('click', () => {
+          document.querySelector('#dndPalette')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          window.toast?.(`Edit “${scene.name}” in the visual builder`);
+        });
+        pauseButton?.addEventListener('click', () => {
+          const paused = card?.dataset.paused !== 'true';
+          if (!card || !status || !runButton) return;
+          card.dataset.paused = String(paused);
+          pauseButton.textContent = paused ? 'Resume' : 'Pause';
+          runButton.disabled = paused;
+          status.className = `tag ${paused ? 'tag-sim' : 'tag-build'}`;
+          status.innerHTML = `<span class="dot"></span>${paused ? 'Paused' : 'Confirmed'}`;
+          window.toast?.(`${scene.name} ${paused ? 'paused' : 'resumed'}`);
+        });
+        card?.querySelector<HTMLButtonElement>('[data-scene-delete]')?.addEventListener('click', async () => {
+          if (!window.confirm(`Delete “${scene.name}”? This removes the saved scene.`)) return;
+          const button = card.querySelector<HTMLButtonElement>('[data-scene-delete]');
+          if (!button) return;
+          button.disabled = true;
+          button.textContent = 'Deleting…';
+          try {
+            await deleteScene(scene.id);
+            card.remove();
+            window.toast?.(`“${scene.name}” deleted`);
+            window.logActivity?.(`Scene deleted — ${scene.name}`, 'warn');
+          } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Delete';
+            window.toast?.(error instanceof Error ? error.message : 'Could not delete the scene');
+          }
+        });
+      });
+    } catch {
+      // The fixed prototype scenes remain usable if the backend is unavailable.
+    }
+  };
+
+  const onSaved = () => void refresh();
+  window.renderSavedDbScenes = onSaved;
+  window.addEventListener('livlink:saved-scene', onSaved);
+  void refresh();
+  return () => {
+    disposed = true;
+    window.removeEventListener('livlink:saved-scene', onSaved);
+    delete window.renderSavedDbScenes;
+  };
 }
 
 function wireBackendSceneComposer() {
@@ -131,7 +249,156 @@ function wireBackendSceneComposer() {
   });
 }
 
-export default function App() {
+
+// ---------------------------------------------------------------------------
+// AI Intelligence Panel — insight cards from /api/insights
+// ---------------------------------------------------------------------------
+
+const CATEGORY_CONFIG: Record<string, { icon: string; colorClass: string }> = {
+  energy: { icon: '⚡', colorClass: 'insight-energy' },
+  maintenance: { icon: '🔧', colorClass: 'insight-maintenance' },
+  automation: { icon: '💡', colorClass: 'insight-automation' },
+};
+
+function renderInsightCard(insight: AIInsight): string {
+  const config = CATEGORY_CONFIG[insight.category] || { icon: '📊', colorClass: '' };
+  const body = insight.body as Record<string, unknown>;
+  const severity = insight.severity;
+
+  let detail = '';
+  if (insight.category === 'energy') {
+    detail = `
+      <div class="insight-stats">
+        <div class="insight-stat"><span class="insight-stat-label">Current</span><span class="insight-stat-value">${body.current_kwh} kWh</span></div>
+        <div class="insight-stat"><span class="insight-stat-label">Typical</span><span class="insight-stat-value">${body.typical_kwh} kWh</span></div>
+        <div class="insight-stat"><span class="insight-stat-label">Deviation</span><span class="insight-stat-value ${severity === 'critical' ? 'critical-text' : 'warning-text'}">+${body.deviation_pct}%</span></div>
+      </div>
+      <p class="fine" style="margin-top:8px;">${escapeHtml(String(body.recommendation || ''))}</p>`;
+  } else if (insight.category === 'maintenance') {
+    const factors = (body.factors as string[]) || [];
+    detail = `
+      <div class="insight-stats">
+        <div class="insight-stat"><span class="insight-stat-label">Battery</span><span class="insight-stat-value ${(body.battery_pct as number) < 20 ? 'critical-text' : ''}">${body.battery_pct}%</span></div>
+        <div class="insight-stat"><span class="insight-stat-label">Failures</span><span class="insight-stat-value">${body.connection_failures} today</span></div>
+        <div class="insight-stat"><span class="insight-stat-label">Risk</span><span class="insight-stat-value ${body.risk_level === 'high' ? 'critical-text' : 'warning-text'}">${String(body.risk_level).toUpperCase()}</span></div>
+      </div>
+      <div class="insight-factors">${factors.map(f => `<span class="insight-factor">${escapeHtml(f)}</span>`).join('')}</div>
+      <p class="fine" style="margin-top:8px;">${escapeHtml(String(body.recommendation || ''))}</p>
+      <div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.58); border:1px solid rgba(190,70,85,.16);">
+        <b style="font-size:13px;">Demo automation: low-battery route</b>
+        <p class="fine" style="margin:3px 0 8px;">Seeded 8% lock telemetry is below the 10% threshold, so LIVLINK automatically creates a simulated operator maintenance request.</p>
+        <button class="btn btn-secondary btn-sm" onclick="window.openMockMaintenanceRequest?.()">View operator request</button>
+      </div>`;
+  } else if (insight.category === 'automation') {
+    const scene = body.suggested_scene as Record<string, unknown> | undefined;
+    const actions = (scene?.actions as Array<Record<string, unknown>>) || [];
+    detail = `
+      <p style="font-size:15px; line-height:1.5; margin-bottom:10px;">${escapeHtml(String(body.description || ''))}</p>
+      <div class="insight-scene-preview">
+        <b>${escapeHtml(String(scene?.scene_name || 'Suggested Scene'))}</b>
+        ${actions.map(a => {
+          const valStr = a.value != null ? (a.action === 'set_temperature' ? ` → ${a.value}°C` : ` → ${a.value}%`) : '';
+          return `<div class="fine">• ${escapeHtml(String(a.device_id))} · ${String(a.action).replace(/_/g, ' ')}${valStr}</div>`;
+        }).join('')}
+      </div>
+      <p class="fine" style="margin-top:6px;">Pattern seen ${body.pattern_matches}/${body.pattern_days} days</p>`;
+  }
+
+  const buttons = insight.category === 'automation'
+    ? `<button class="btn btn-primary btn-sm" data-apply="${insight.id}">Accept</button>
+       <button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Not now</button>`
+    : insight.category === 'maintenance'
+    ? `<button class="btn btn-primary btn-sm" onclick="window.toast?.('Technician scheduled (simulated)')">Schedule technician</button>
+       <button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Dismiss</button>`
+    : `<button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Dismiss</button>`;
+
+  return `<div class="insight-card ${config.colorClass} ${severity === 'critical' ? 'insight-pulse' : ''}" data-insight-id="${insight.id}">
+    <div class="row between" style="margin-bottom:8px;">
+      <div class="row" style="gap:8px; align-items:center;">
+        <span style="font-size:20px;">${config.icon}</span>
+        <b style="font-size:15.5px;">${escapeHtml(insight.title)}</b>
+      </div>
+      <span class="tag ${severity === 'critical' ? 'tag-critical' : severity === 'warning' ? 'tag-warning' : 'tag-sim'}">
+        <span class="dot"></span>${escapeHtml(String(body.device_name || insight.category))}
+      </span>
+    </div>
+    ${detail}
+    <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">${buttons}</div>
+  </div>`;
+}
+
+function wireInsightPanel() {
+  const container = document.querySelector<HTMLElement>('#insightCards');
+  const mqttDot = document.querySelector<HTMLElement>('#mqttDot');
+  if (!container) return;
+  const cards = container;
+
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  async function refresh() {
+    try {
+      const [{ insights }, mqttStatus] = await Promise.all([getInsights(), getMqttStatus().catch(() => ({ connected: false, events_received: 0 }))]);
+
+      // Update the simulated event-stream status dot.
+      if (mqttDot) {
+        mqttDot.classList.toggle('connected', mqttStatus.connected);
+        mqttDot.title = mqttStatus.connected
+          ? `Simulated event stream connected · ${mqttStatus.events_received} events`
+          : 'Simulated event stream disconnected';
+      }
+
+      if (!insights.length) {
+        cards.innerHTML = '<div class="insight-placeholder fine" style="padding:18px; text-align:center; color:var(--text-3);">No active insights — all systems normal ✓</div>';
+        return;
+      }
+
+      cards.innerHTML = insights.map(renderInsightCard).join('');
+
+      // Wire dismiss buttons
+      cards.querySelectorAll<HTMLButtonElement>('[data-dismiss]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.dataset.dismiss);
+          btn.disabled = true;
+          btn.textContent = 'Dismissing…';
+          try {
+            await dismissInsight(id);
+            const card = btn.closest<HTMLElement>('.insight-card');
+            if (card) { card.style.opacity = '0'; card.style.transform = 'translateX(20px)'; setTimeout(() => card.remove(), 300); }
+            window.toast?.('Insight dismissed');
+            window.logActivity?.('AI insight dismissed', 'ok');
+          } catch { btn.disabled = false; btn.textContent = 'Dismiss'; }
+        });
+      });
+
+      // Wire apply buttons
+      cards.querySelectorAll<HTMLButtonElement>('[data-apply]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.dataset.apply);
+          btn.disabled = true;
+          btn.textContent = 'Creating scene…';
+          try {
+            const result = await applyInsight(id);
+            btn.textContent = 'Scene created ✓';
+            window.toast?.(`${result.name} saved as a new scene`);
+            window.logActivity?.(`AI automation applied — ${result.name} (id ${result.id})`, 'ok');
+          } catch { btn.disabled = false; btn.textContent = 'Accept'; }
+        });
+      });
+    } catch {
+      cards.innerHTML = '<div class="insight-placeholder fine" style="padding:18px; text-align:center; color:var(--text-3);">Could not load insights — is the backend running?</div>';
+    }
+  }
+
+  // Initial load + poll every 5 seconds
+  void refresh();
+  pollTimer = setInterval(() => void refresh(), 5000);
+
+  // Cleanup on unmount (not strictly needed for prototype but good practice)
+  return () => { if (pollTimer) clearInterval(pollTimer); };
+}
+
+
+export default function App({ initialRole }: { initialRole?: string } = {}) {
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!host.current) return;
@@ -150,7 +417,12 @@ export default function App() {
     host.current.innerHTML = bodyMarkup;
     Function(`${prototypeScript}\nwindow.toast = toast; window.logActivity = logActivity;`)();
     wireBackendSceneComposer();
-    return () => { style.remove(); polish.remove(); font.remove(); };
+    const cleanupSavedScenes = wireSavedScenesLibrary();
+    const cleanupInsights = wireInsightPanel();
+    if (initialRole && initialRole !== 'owner') {
+      document.querySelector<HTMLButtonElement>(`#rolePill button[data-role="${initialRole}"]`)?.click();
+    }
+    return () => { style.remove(); polish.remove(); font.remove(); cleanupSavedScenes?.(); cleanupInsights?.(); };
   }, []);
   return <div ref={host} />;
 }

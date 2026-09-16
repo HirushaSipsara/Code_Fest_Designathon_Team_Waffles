@@ -101,10 +101,11 @@
   }
   .masthead-id{display:flex; align-items:center; gap:10px;}
   .mark{
-    width:36px; height:36px; border-radius:11px; background:var(--accent-grad);
-    display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--ff-d);
-    font-weight:700; font-size:17.5px; box-shadow:var(--shadow-sm);
+    width:36px; height:36px; border-radius:11px; background:#E8EBFF;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    box-shadow:var(--shadow-sm);
   }
+  .mark img{width:48px; height:48px; object-fit:contain; flex:none;}
   .masthead-text .name{font-family:var(--ff-d); font-weight:700; font-size:19px; line-height:1.1;}
   .masthead-text .sub{font-size:13px; color:var(--text-3); letter-spacing:.02em;}
 
@@ -461,7 +462,7 @@
 
   <div class="masthead">
     <div class="masthead-id">
-      <div class="mark">L</div>
+      <div class="mark"><img src="/assets/livlink-logo-mark.png" alt="LIVLINK logo"></div>
       <div class="masthead-text">
         <div class="name">LIVLINK</div>
         <div class="sub">Integrated Smart Living Platform · prototype</div>
@@ -500,8 +501,8 @@
       <button data-view="services"><span class="ic">🧰</span>Services</button>
       <div class="role-block">
         <div class="role-label">Preview rights as</div>
-        <div class="pill-toggle" id="rolePill" style="width:100%; flex-direction:column; gap:2px;">
-          <button data-role="owner" class="active" style="width:100%; text-align:left;">Owner</button>
+        <div class="pill-toggle" id="rolePill" style="width:100%; flex-direction:column; gap:2px; background:transparent; padding:0; border-radius:0;">
+          <button data-role="owner" class="active" style="width:100%; text-align:left;" title="Open tenant access controls">Owner</button>
           <button data-role="occupier" style="width:100%; text-align:left;">Occupier</button>
           <button data-role="tenant" style="width:100%; text-align:left;">Tenant</button>
         </div>
@@ -648,6 +649,22 @@
               <tr><td>Fri</td><td>AC turned on manually — 6:36 PM</td></tr>
             </table>
             <p style="margin-top:8px;">A short history of timestamped "AC turned on" events, checked against a simple time-window threshold — not a trained model. It only suggests when the recent pattern is reasonably consistent; an irregular history shows no suggestion at all. Manual control always stays available, and any manual change overrides this suggestion for the rest of the day.</p>
+          </div>
+        </div>
+
+        <!-- AI INTELLIGENCE PANEL — populated from /api/insights -->
+        <div class="card" id="aiIntelligencePanel">
+          <div class="section-head">
+            <h2>AI Intelligence</h2>
+            <span class="row" style="gap:8px; align-items:center;">
+              <span class="mqtt-dot" id="mqttDot" title="Simulated event-stream status"></span>
+              <span class="tag tag-build"><span class="dot"></span>Live from backend</span>
+            </span>
+          </div>
+          <p class="fine" style="margin:6px 0 14px;">Live insights from the simulated device event stream — energy anomalies, device health, and automation suggestions. All analysis is deterministic and offline.</p>
+          <div id="insightCards" class="stack" style="gap:12px;">
+            <!-- Cards injected by wireInsightPanel() -->
+            <div class="insight-placeholder fine" style="padding:18px; text-align:center; color:var(--text-3);">Loading insights from backend…</div>
           </div>
         </div>
 
@@ -850,6 +867,63 @@
         </div>
 
         <div id="accessPanel"></div>
+      </section>
+
+      <!-- TENANT ACCESS — UI-only owner control simulation -->
+      <section class="view" data-panel="tenant-access">
+        <div class="card">
+          <div class="section-head">
+            <h2>Tenant access</h2>
+            <span class="tag tag-sim"><span class="dot"></span>UI-only simulation</span>
+          </div>
+          <p class="fine" style="margin-top:6px;">Set the tenancy end date and the parts of LIVLINK this tenant may use. This prototype does not change a real account or lock.</p>
+        </div>
+
+        <div class="card" id="tenantAccessCard">
+          <div class="row between" style="gap:12px; flex-wrap:wrap;">
+            <div class="row" style="gap:12px;">
+              <div class="dev-ic" style="width:44px; height:44px; border-radius:14px; font-size:21px;">🧑‍💼</div>
+              <div class="stack" style="gap:2px;">
+                <b style="font-size:16.5px;">Amaya Perera</b>
+                <span class="fine">Tenant · Unit 1204</span>
+              </div>
+            </div>
+            <span class="tag tag-build" id="tenantAccessState"><span class="dot"></span>Access active</span>
+          </div>
+
+          <div class="grid cols-2" style="margin-top:18px; gap:14px;">
+            <label class="stack" style="gap:6px;">
+              <b style="font-size:14.5px;">Tenancy ends</b>
+              <input id="tenantEndDate" type="date" value="2026-12-31" aria-describedby="tenantExpiryHelp">
+              <span class="fine" id="tenantExpiryHelp">At 11:59 PM on this date, all selected tenant access is automatically revoked in this UI simulation.</span>
+            </label>
+            <div class="card tight" style="background:var(--surface-2); border-color:var(--border);">
+              <b style="font-size:14.5px;">Access summary</b>
+              <p class="fine" id="tenantAccessSummary" style="margin-top:6px;"></p>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <b style="font-size:14.5px;">Tenant can use</b>
+            <div class="grid cols-2" style="margin-top:10px; gap:10px;" id="tenantPermissionList">
+              <label class="row" style="padding:11px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; gap:10px;"><input type="checkbox" data-tenant-permission="devices" checked><span>🎛️ Device controls</span></label>
+              <label class="row" style="padding:11px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; gap:10px;"><input type="checkbox" data-tenant-permission="scenes" checked><span>🎬 Saved scenes</span></label>
+              <label class="row" style="padding:11px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; gap:10px;"><input type="checkbox" data-tenant-permission="visitor" checked><span>🔑 Visitor passes</span></label>
+              <label class="row" style="padding:11px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; gap:10px;"><input type="checkbox" data-tenant-permission="facilities"><span>🏊 Facility bookings</span></label>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:18px; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="tenantAccessSave">Save access policy</button>
+            <button class="btn btn-ghost" id="tenantAccessExpire">Simulate tenancy ending</button>
+          </div>
+          <p class="fine" id="tenantAccessFeedback" role="status" aria-live="polite" style="display:none; margin-top:12px;"></p>
+        </div>
+
+        <div class="card" style="background:var(--surface-2);">
+          <b style="font-size:14.5px;">What happens at the end date?</b>
+          <p class="fine" style="margin-top:6px;">The tenant’s device controls, scenes, visitor-pass tools and facility bookings are removed together. Owner access remains unchanged. This screen demonstrates the policy only; no backend or physical device is affected.</p>
+        </div>
       </section>
 
       <!-- BILLS -->
@@ -1060,7 +1134,8 @@
 
       <section class="view" data-panel="op-maint">
         <div class="card">
-          <div class="section-head"><h2>Maintenance requests</h2><span class="tag tag-sim"><span class="dot"></span>Seeded example</span></div>
+          <div class="section-head"><h2>Maintenance requests</h2><span class="tag tag-sim"><span class="dot"></span>Simulated device layer</span></div>
+          <p class="fine" style="margin:6px 0 0;">Requests marked <b>AI-routed</b> were created automatically from seeded device telemetry for this demo.</p>
           <div class="stack" style="gap:10px; margin-top:12px;" id="maintQueue"></div>
         </div>
       </section>
@@ -1164,7 +1239,12 @@
     facility: 'Gym',
     billsTab: 'usage',
     dndActions: [],
-    issueCategory: null
+    issueCategory: null,
+    tenantPolicy: {
+      endDate: '2026-12-31',
+      permissions: {devices:true, scenes:true, visitor:true, facilities:false},
+      feedback: ''
+    }
   };
   var maintPaid = false;
 
@@ -1236,6 +1316,7 @@
     {unit:'1105', issue:'AC drainage leak', status:'resolved', note:'Reported 3 days ago · resolved today 9:10 AM — resident notified'},
     {unit:'0203', issue:'Intercom static', status:'open', note:'Reported this morning · awaiting technician'}
   ];
+  var mockLowBatteryRequestSent = false;
 
   /* ---------------------------- helpers ---------------------------- */
   function $(sel, root){ return (root||document).querySelector(sel); }
@@ -1294,6 +1375,10 @@
 
   /* ---------------------------- resident nav ---------------------------- */
   function switchView(view){
+    if (view === 'tenant-access' && state.role !== 'owner') {
+      toast('Tenant access is available to the Owner only');
+      view = 'home';
+    }
     state.resView = view;
     $all('#residentSideNav button[data-view]').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
     $all('#residentTabbar button[data-view]').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
@@ -1345,6 +1430,89 @@
     toast(ROLE_MSG[state.role]);
     renderServicesLock();
     renderBillsPanel();
+    updateTenantAccessAvailability();
+    if (state.role === 'owner') switchView('tenant-access');
+  });
+
+  /* ---------------------------- tenant access (UI-only) ---------------------------- */
+  function tenantPolicyIsExpired(){
+    var end = state.tenantPolicy.endDate;
+    if (!end) return true;
+    return new Date(end + 'T23:59:59').getTime() < Date.now();
+  }
+
+  function formatTenantEndDate(value){
+    if (!value) return 'an end date';
+    return new Intl.DateTimeFormat('en-US', {day:'numeric', month:'long', year:'numeric'}).format(new Date(value + 'T12:00:00'));
+  }
+
+  function renderTenantAccessPolicy(){
+    var policy = state.tenantPolicy;
+    var expired = tenantPolicyIsExpired();
+    var enabled = Object.keys(policy.permissions).filter(function(key){ return policy.permissions[key]; }).length;
+    var dateInput = $('#tenantEndDate');
+    if (!dateInput) return;
+    dateInput.value = policy.endDate;
+    $all('[data-tenant-permission]').forEach(function(input){
+      var key = input.dataset.tenantPermission;
+      input.checked = !!policy.permissions[key];
+      input.disabled = expired;
+    });
+    var stateTag = $('#tenantAccessState');
+    stateTag.className = 'tag ' + (expired ? 'tag-critical' : 'tag-build');
+    stateTag.innerHTML = '<span class="dot"></span>' + (expired ? 'Access revoked' : 'Access active');
+    $('#tenantAccessSummary').textContent = expired
+      ? 'All tenant access expired on ' + formatTenantEndDate(policy.endDate) + '. Update the date to restore selected permissions.'
+      : enabled + ' of 4 access categories active until ' + formatTenantEndDate(policy.endDate) + '.';
+    var save = $('#tenantAccessSave');
+    save.textContent = expired ? 'Extend tenancy & restore access' : 'Save access policy';
+    var simulate = $('#tenantAccessExpire');
+    simulate.disabled = expired;
+    simulate.textContent = expired ? 'Tenancy ended' : 'Simulate tenancy ending';
+    var feedback = $('#tenantAccessFeedback');
+    if (policy.feedback) {
+      feedback.style.display = 'block';
+      feedback.style.color = expired ? 'var(--critical)' : 'var(--success)';
+      feedback.textContent = policy.feedback;
+    } else {
+      feedback.style.display = 'none';
+    }
+  }
+
+  function updateTenantAccessAvailability(){
+    var owner = state.role === 'owner';
+    if (!owner && state.resView === 'tenant-access') switchView('home');
+  }
+
+  $('#tenantEndDate').addEventListener('change', function(){
+    state.tenantPolicy.endDate = this.value;
+    state.tenantPolicy.feedback = '';
+    renderTenantAccessPolicy();
+  });
+  $('#tenantPermissionList').addEventListener('change', function(e){
+    var input = e.target.closest('[data-tenant-permission]');
+    if (!input) return;
+    state.tenantPolicy.permissions[input.dataset.tenantPermission] = input.checked;
+    state.tenantPolicy.feedback = '';
+    renderTenantAccessPolicy();
+  });
+  $('#tenantAccessSave').addEventListener('click', function(){
+    var expired = tenantPolicyIsExpired();
+    state.tenantPolicy.feedback = expired
+      ? 'Policy saved. Access remains revoked until you choose a future tenancy end date.'
+      : 'Access policy saved for Amaya Perera. It will revoke all selected access at the tenancy end date.';
+    renderTenantAccessPolicy();
+    logActivity('Tenant access policy updated for Amaya Perera', 'ok');
+    toast('Tenant access policy saved (UI simulation)');
+  });
+  $('#tenantAccessExpire').addEventListener('click', function(){
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    state.tenantPolicy.endDate = yesterday.toISOString().slice(0, 10);
+    state.tenantPolicy.feedback = 'Tenancy ended — device controls, scenes, visitor passes and facility bookings are now revoked in this UI simulation.';
+    renderTenantAccessPolicy();
+    logActivity('Tenant access automatically revoked at tenancy end', 'warn');
+    toast('Tenant access revoked (UI simulation)');
   });
 
   function renderServicesLock(){
@@ -1555,16 +1723,18 @@
       '<div class="stack" style="gap:5px; margin:12px 0;">' +
         s.actions.map(function(a){ return '<div class="fine">• '+a+'</div>'; }).join('') +
       '</div>' +
-      '<div class="row" style="gap:8px;">' +
+      '<div class="row" style="gap:8px; flex-wrap:wrap;">' +
         '<button class="btn btn-primary btn-sm" onclick="runScene(\''+s.id+'\')">Run now</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="toast(\''+s.name+' saved (edit panel omitted in this prototype pass)\')">Edit</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="toast(\''+s.name+' paused\')">Pause</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteScene(\''+s.id+'\')">Delete</button>' +
       '</div>' +
     '</div>';
   }
   function renderScenes(){
     $('#sceneCards').innerHTML = SCENES.map(function(s){ return sceneCardHtml(s,false); }).join('');
     $('#quickScenes').innerHTML = SCENES.map(function(s){ return sceneCardHtml(s,true); }).join('');
+    if (typeof window.renderSavedDbScenes === 'function') window.renderSavedDbScenes();
   }
   window.runScene = function(id){
     var s = SCENES.filter(function(x){return x.id===id;})[0];
@@ -1575,6 +1745,16 @@
       toast(name + ' — all actions acknowledged');
       logActivity(name + ' scene ran — ' + n + ' of ' + n + ' actions acknowledged', 'ok');
     }, 700);
+  };
+
+  window.deleteScene = function(id){
+    var s = SCENES.filter(function(x){ return x.id===id; })[0];
+    if (!s) return;
+    if (!window.confirm('Delete “'+s.name+'”? This cannot be undone in this prototype session.')) return;
+    SCENES = SCENES.filter(function(x){ return x.id!==id; });
+    renderScenes();
+    logActivity('Scene deleted — '+s.name, 'warn');
+    toast('“'+s.name+'” deleted');
   };
 
   window.goToScene = function(id){
@@ -2428,16 +2608,47 @@
       var open = m.status==='open';
       return '<div class="row between" style="padding:12px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; gap:10px; flex-wrap:wrap;">' +
         '<div class="stack" style="gap:3px;"><b style="font-size:15px;">Unit '+m.unit+' — '+m.issue+'</b><span class="fine">'+m.note+'</span></div>' +
-        '<span class="tag '+(open?'tag-sim':'tag-build')+'"><span class="dot"></span>'+(open?'Open':'Resolved')+'</span>' +
+        '<div class="row" style="gap:6px;"><span class="tag '+(open?'tag-sim':'tag-build')+'"><span class="dot"></span>'+(open?'Open':'Resolved')+'</span>'+(m.aiRouted?'<span class="tag tag-build"><span class="dot"></span>AI-routed</span>':'')+'</div>' +
       '</div>';
     }).join('');
   }
+
+  function routeMockLowBatteryRequest(){
+    if (mockLowBatteryRequestSent) return false;
+    var lock = FLEET.find(function(device){ return device.did === 'LK-1204'; });
+    if (!lock) return false;
+    var match = lock.detail.match(/Battery\s+(\d+)%/i);
+    var battery = match ? Number(match[1]) : 10;
+    if (battery > 10) return false;
+
+    MAINT.unshift({
+      unit: lock.unit,
+      issue: 'Smart Lock battery critically low ('+battery+'%)',
+      status: 'open',
+      aiRouted: true,
+      note: 'AI detected battery below the 10% threshold · automatically routed to the operator · simulated'
+    });
+    mockLowBatteryRequestSent = true;
+    renderMaint();
+    logActivity('AI maintenance alert — Smart Lock battery at '+battery+'%; operator request created','warn');
+    window.dispatchEvent(new CustomEvent('livlink:mock-maintenance-request', {detail:{unit:lock.unit, device:lock.device, battery:battery}}));
+    return true;
+  }
+
+  window.routeMockLowBatteryRequest = routeMockLowBatteryRequest;
+  window.openMockMaintenanceRequest = function(){
+    setPersona('operator');
+    switchOpView('op-maint');
+    setTimeout(function(){ $('#maintQueue').scrollIntoView({behavior:'smooth', block:'nearest'}); }, 60);
+  };
 
   /* ---------------------------- init ---------------------------- */
   renderHomeRoomTabs();
   renderHomeRoom();
   renderScenes();
   renderAccessPanel();
+  renderTenantAccessPolicy();
+  updateTenantAccessAvailability();
   renderBillsPanel();
   renderGym();
   renderActivity();
@@ -2448,6 +2659,7 @@
   renderFleet();
   renderPortfolio();
   renderDevEnergyChart();
+  routeMockLowBatteryRequest();
   renderMaint();
   renderMemberships();
   updateOnCount();

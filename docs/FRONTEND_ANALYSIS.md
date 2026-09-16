@@ -2,7 +2,7 @@
 
 ## Source and scope
 
-This analysis covers the complete approved source of truth, [`livlink-prototype.html`](../livlink-prototype.html) (2,459 lines). It remains unchanged. The document distinguishes executable browser simulation from backed implementation; a toast message alone is not treated as backend behaviour.
+This analysis covers the complete approved source of truth, [`livlink-prototype.html`](../livlink-prototype.html), including the added Intelligence panel placeholder. The document distinguishes executable browser simulation from backed implementation; a toast message alone is not treated as backend behaviour.
 
 ## Audiences and roles
 
@@ -13,7 +13,7 @@ This analysis covers the complete approved source of truth, [`livlink-prototype.
 | Operator | 990–1071 | Building overview, pass verification and maintenance queue. |
 | Developer | 1072–1163 | Portfolio/device-health overview and seeded energy metrics. |
 
-Resident role behaviour is explicit at 1335–1372: all three roles retain everyday device/scenes/visitor access; owner-only controls are maintenance-fee/billing/property-related. The scene backend therefore does not create a role distinction beyond validating that the requester is one of those resident roles. AI-created scenes additionally cannot unlock a door, a safety boundary not delegated to the LLM.
+All three resident roles retain everyday device/scenes/visitor access; owner-only controls are maintenance-fee/billing/property-related. The scene backend therefore does not create a role distinction beyond validating that the requester is one of those resident roles. Generated scenes additionally cannot unlock a door, a deterministic safety boundary.
 
 ## Screens and interactions
 

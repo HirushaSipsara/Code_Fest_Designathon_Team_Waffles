@@ -11,6 +11,7 @@ from app.models.entities import ActivityEvent, Device, Scene
 from app.core.permissions import validate_scene_permission
 from app.simulator.device_adapter import AdapterReply, DeviceAdapter
 from types import SimpleNamespace
+from app.ai.provider import GeminiProvider, OpenAICompatibleProvider, _gemini_schema
 
 
 def proposal() -> SceneProposal:
@@ -38,7 +39,7 @@ def test_pydantic_rejects_extra_output():
 def test_provider_output_is_parsed(monkeypatch):
     class Provider:
         def parse_scene(self, **_): return proposal().model_dump_json()
-    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_api_key="configured", ai_model="test-model", ai_base_url="https://provider.invalid/v1"))
+    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_use_seeded=False, ai_api_key="configured", ai_model="test-model", ai_base_url="https://provider.invalid/v1"))
     result = AIService(Provider()).parse_scene_request("a new supported request", [{"id":"ac","name":"Air Conditioner","kind":"ac","room":"Living Room","state":{}}], "owner")
     assert result.status == "ready"
     assert result.actions[0].device_id == "ac"
@@ -47,7 +48,7 @@ def test_provider_output_is_parsed(monkeypatch):
 def test_invalid_provider_output_uses_honest_fallback(monkeypatch):
     class Provider:
         def parse_scene(self, **_): return '{"not":"a scene"}'
-    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_api_key="configured", ai_model="test-model", ai_base_url="https://provider.invalid/v1"))
+    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_use_seeded=False, ai_api_key="configured", ai_model="test-model", ai_base_url="https://provider.invalid/v1"))
     result = AIService(Provider()).parse_scene_request("request", [], "owner")
     assert result.status == "service_unavailable"
     assert result.reason == "AI returned invalid structured data"
@@ -112,3 +113,71 @@ def test_confirmation_rejects_fabricated_frontend_proposal():
     with TestClient(app) as client:
         response = client.post("/api/scenes/confirm", json={"role":"owner", "proposal": proposal().model_dump()})
         assert response.status_code == 422
+
+
+def test_gemini_schema_strips_dialect_gemini_cannot_read():
+    from app.services.ai_service import strict_provider_schema
+    flat = _gemini_schema(strict_provider_schema(SceneProposal.model_json_schema()))
+
+    def offenders(node, path=""):
+        found = []
+        if isinstance(node, dict):
+            if any(key in node for key in ("$ref", "$defs", "const", "default", "additionalProperties")):
+                found.append(path or "<root>")
+            if node.get("type") == "null":
+                found.append(f"{path} (bare null type)")
+            for key, value in node.items():
+                found += offenders(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                found += offenders(value, f"{path}[{index}]")
+        return found
+
+    assert offenders(flat) == []
+    assert flat["properties"]["reason"] == {"type": "string", "nullable": True}
+    assert flat["properties"]["trigger"]["properties"]["type"] == {"type": "string", "enum": ["resident_arrives"]}
+
+
+def test_gemini_provider_sends_system_instruction_and_parses_candidate(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"candidates": [{"content": {"parts": [{"text": proposal().model_dump_json()}]}}]}
+
+    def fake_post(url, params=None, json=None, timeout=None):
+        captured.update(url=url, params=params, body=json)
+        return FakeResponse()
+
+    monkeypatch.setattr("app.ai.provider.httpx.post", fake_post)
+    content = GeminiProvider().parse_scene(
+        model="gemini-2.0-flash", key="test-key", base_url="https://generativelanguage.googleapis.com/v1beta",
+        messages=[{"role": "system", "content": "be strict"}, {"role": "user", "content": "arrival comfort"}],
+        schema={"type": "object", "properties": {}},
+    )
+    assert SceneProposal.model_validate_json(content).status == "ready"
+    assert captured["url"].endswith("/models/gemini-2.0-flash:generateContent")
+    assert captured["params"] == {"key": "test-key"}
+    assert captured["body"]["systemInstruction"]["parts"][0]["text"] == "be strict"
+    assert captured["body"]["contents"][0]["parts"][0]["text"] == "arrival comfort"
+    assert captured["body"]["generationConfig"]["responseMimeType"] == "application/json"
+
+
+def test_gemini_provider_reports_blocked_response_honestly(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"candidates": [{"finishReason": "SAFETY", "content": {}}]}
+
+    monkeypatch.setattr("app.ai.provider.httpx.post", lambda *a, **k: FakeResponse())
+    try:
+        GeminiProvider().parse_scene(model="m", key="k", base_url="https://x", messages=[], schema={})
+        assert False, "expected a ValueError when Gemini returns no usable content"
+    except ValueError as exc:
+        assert "SAFETY" in str(exc)
+
+
+def test_default_provider_selection_follows_settings(monkeypatch):
+    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_provider="gemini"))
+    assert isinstance(ai_module.AIService._default_provider(), GeminiProvider)
+    monkeypatch.setattr(ai_module, "get_settings", lambda: SimpleNamespace(ai_provider="openai"))
+    assert isinstance(ai_module.AIService._default_provider(), OpenAICompatibleProvider)

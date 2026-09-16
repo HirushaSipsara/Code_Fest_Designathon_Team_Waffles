@@ -1,59 +1,28 @@
 # CP3 evidence
 
------------------------------------
-## 1. END-TO-END SLICE RUNNING
------------------------------------
+## Real
 
-Evidence: React `frontend/src/App.tsx` calls `frontend/src/api.ts`, then FastAPI `POST /api/ai/scenes/parse`. `AIService` calls the provider, Pydantic and policy validate, `/api/scenes/confirm` stores a server-issued draft in PostgreSQL, and `/api/simulation/resident-arrival` runs automation through `DeviceService`. React reloads `/api/devices` and `/api/activity` after acknowledgement.
+- Complete React frontend and local FastAPI integration
+- PostgreSQL persistence for telemetry, insights, scenes, drafts and audit events
+- Pydantic schema validation and deterministic device/policy validation
+- Energy baseline/anomaly calculation
+- Predictive-maintenance weighted risk scoring
+- Learned-automation frequency counting
+- Scene confirmation and automation engine
+- Device abstraction and acknowledgement lifecycle
 
-Current verification: the React → FastAPI no-key fallback, PostgreSQL device reads, build, migrations and stubbed full workflow pass. A real provider call cannot be certified on this host because `AI_API_KEY` and `AI_MODEL` are absent.
+## Seeded or simulated
 
------------------------------------
-## 2. SIMULATION CLEARLY IDENTIFIED
------------------------------------
+- Seven-day energy history, battery decline and arrival/action patterns
+- In-process device event stream
+- AC, lights, curtains, locks, TV and sensor events
+- Resident arrival, visitor scanner and camera feed
+- Natural-language intent matching (15 seeded phrase groups; no LLM)
 
-**Simulated:** AC, lights, curtains, lock, TV, sensor/arrival event, and prototype scanner/camera feed.
+## Verified path
 
-**Real:** React code and HTTP requests, FastAPI, PostgreSQL, Pydantic validation, policy logic, automation orchestration and audit persistence. The provider HTTP implementation is real, but a live call is unverified without credentials.
+The simulator publishes to the shared in-process bus. The subscriber persists telemetry and invokes deterministic analysis services. React polls the local `/api/insights` and status endpoints, then lets the user dismiss insights or accept a validated automation proposal. Automated tests cover route registration, insight persistence, one-time scene creation, unsafe-action rejection, scene confirmation and simulated command acknowledgement.
 
-**Seeded:** device catalogue, historical behaviour, energy examples, fleet data, developer metrics and provider few-shot examples. Few-shot examples support a real LLM and are not phrase matching or training data.
+## Honest limitations
 
------------------------------------
-## 3. COMPONENTS INTEGRATED
------------------------------------
-
-React calls FastAPI; FastAPI calls `AIService`; `AIService` calls `AIProvider`; scene confirmation calls PostgreSQL; automation calls `DeviceService`; `DeviceService` calls `MockDeviceAdapter`; acknowledged state returns to React through `/api/devices`. Automated integration test: `backend/tests/test_scene_flow.py::test_api_parse_confirm_execute`.
-
------------------------------------
-## 4. COHERENT ARCHITECTURE
------------------------------------
-
-See `docs/ARCHITECTURE.md`. AI is separated from execution so model output cannot directly control devices. A server-issued persisted draft prevents a fabricated client proposal from being confirmed.
-
------------------------------------
-## 5. AI SOLVES GENUINE PROBLEM
------------------------------------
-
-Residents should not need rule syntax or manually configure every device. The LLM translates natural language into a constrained, reviewable automation proposal.
-
------------------------------------
-## 6. AI INTEGRATED INTO WORKFLOW
------------------------------------
-
-The output is not a chatbot answer: structured actions become a persisted scene only after deterministic validation and explicit resident confirmation, then the automation engine can execute it on a matching simulated event.
-
------------------------------------
-## 7. DATA / LIMITATIONS / FALLBACK
------------------------------------
-
-Data sent: request, supported device catalogue/actions, trigger/condition, role and few-shot examples. Limitations: known devices/actions only, one arrival trigger/condition, ambiguous language, provider dependency, prototype role context and simulated IoT. Fallback: a visible service-unavailable/clarification state points to the approved manual builder. The builder remains implemented in the untouched prototype, not yet ported into React.
-
------------------------------------
-## 8. CLEAR PATH TO COMPLETION
------------------------------------
-
-Today: `DeviceService → MockDeviceAdapter`. Future: `DeviceService → MQTTDeviceAdapter → Real IoT Gateway`.
-
-Today: prototype role context. Future: authenticated identity provider and server-derived permissions.
-
-Today: seeded energy history. Future: live telemetry.
+This demo has no external AI provider, API key, physical hardware or network MQTT broker. It demonstrates a credible end-to-end workflow using deterministic seeded logic. Production paths remain replaceable behind `DeviceAdapter` and the event-bus boundary.

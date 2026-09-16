@@ -1,7 +1,6 @@
 from datetime import datetime
-from sqlalchemy import DateTime, Integer, String, Text, JSON, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, JSON, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
 
 class Base(DeclarativeBase):
     pass
@@ -42,3 +41,37 @@ class ActivityEvent(Base):
     message: Mapped[str] = mapped_column(Text)
     category: Mapped[str] = mapped_column(String(20), default="ok")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DeviceTelemetry(Base):
+    """Every MQTT reading stored for analytics."""
+    __tablename__ = "device_telemetry"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(50), index=True)
+    event_type: Mapped[str] = mapped_column(String(30))  # energy, heartbeat, battery, status
+    payload: Mapped[dict] = mapped_column(JSON)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AIInsight(Base):
+    """Generated intelligence cards shown in the UI."""
+    __tablename__ = "ai_insights"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category: Mapped[str] = mapped_column(String(20))  # energy, maintenance, automation
+    severity: Mapped[str] = mapped_column(String(10))  # info, warning, critical
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[dict] = mapped_column(JSON)
+    device_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active, dismissed, applied
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResidentEvent(Base):
+    """Resident arrival + action patterns for learned automation."""
+    __tablename__ = "resident_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(30))  # arrival, device_action
+    device_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    action: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    value: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
