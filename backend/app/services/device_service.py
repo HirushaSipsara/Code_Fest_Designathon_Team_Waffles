@@ -1,7 +1,7 @@
-import time
 from sqlalchemy.orm import Session
 from app.models.entities import Device
 from app.schemas.scene import CommandResult, SceneAction
+from app.simulator.device_adapter import DeviceAdapter, MockDeviceAdapter
 
 
 def supported_devices(db: Session) -> list[dict]:
@@ -15,9 +15,10 @@ def validate_action(db: Session, action: SceneAction) -> str | None:
     requirements = {
         "set_temperature": ("ac", lambda v: isinstance(v, int) and 16 <= v <= 32),
         "set_level": (("light", "curtain"), lambda v: isinstance(v, int) and 0 <= v <= 100),
-        "turn_on": (("light", "tv"), lambda v: v is None),
-        "turn_off": (("light", "tv"), lambda v: v is None),
+        "turn_on": (("ac", "light", "tv"), lambda v: v is None),
+        "turn_off": (("ac", "light", "tv"), lambda v: v is None),
         "lock": ("lock", lambda v: v is None),
+        "unlock": ("lock", lambda v: v is None),
     }
     required = requirements.get(action.action)
     if not required:
@@ -32,25 +33,27 @@ def validate_action(db: Session, action: SceneAction) -> str | None:
     return None
 
 
+class DeviceService:
+    def __init__(self, adapter: DeviceAdapter | None = None):
+        self.adapter = adapter or MockDeviceAdapter()
+
+    def execute(self, db: Session, action: SceneAction) -> CommandResult:
+        error = validate_action(db, action)
+        if error:
+            return CommandResult(device_id=action.device_id, action=action.action, status="failed", detail=error)
+        device = db.get(Device, action.device_id)
+        try:
+            reply = self.adapter.send(action, dict(device.state))
+        except Exception:
+            return CommandResult(device_id=device.id, action=action.action, status="failed", detail="Simulated device unavailable")
+        if not reply.acknowledged:
+            return CommandResult(device_id=device.id, action=action.action, status="failed", detail=reply.detail)
+        device.state = reply.state
+        db.add(device)
+        db.commit()
+        return CommandResult(device_id=device.id, action=action.action, status="acknowledged", detail=reply.detail)
+
+
 def execute_simulated(db: Session, action: SceneAction) -> CommandResult:
-    """The only device adapter in this hackathon build. It intentionally models acknowledgement."""
-    error = validate_action(db, action)
-    if error:
-        return CommandResult(device_id=action.device_id, action=action.action, status="failed", detail=error)
-    device = db.get(Device, action.device_id)
-    time.sleep(0.12)  # explicit simulated device latency
-    state = dict(device.state)
-    if action.action == "set_temperature":
-        state.update(on=True, temperature=action.value)
-    elif action.action == "set_level":
-        state.update(on=(action.value or 0) > 0, level=action.value)
-    elif action.action == "turn_on":
-        state["on"] = True
-    elif action.action == "turn_off":
-        state["on"] = False
-    elif action.action == "lock":
-        state["locked"] = True
-    device.state = state
-    db.add(device)
-    db.commit()
-    return CommandResult(device_id=device.id, action=action.action, status="acknowledged", detail="Simulated device acknowledged command")
+    """Compatibility entry point; automation uses DeviceService directly."""
+    return DeviceService().execute(db, action)

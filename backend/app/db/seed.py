@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.entities import Device
+from app.db.session import SessionLocal
 
 DEVICES = [
     ("ac", "Air Conditioner", "ac", "Living Room", {"on": True, "temperature": 25}),
@@ -19,3 +20,9 @@ def seed_devices(db: Session) -> None:
         return
     db.add_all(Device(id=id, name=name, kind=kind, room=room, state=state) for id, name, kind, room, state in DEVICES)
     db.commit()
+
+
+if __name__ == "__main__":
+    with SessionLocal() as session:
+        seed_devices(session)
+    print("LIVLINK prototype device catalogue seeded.")

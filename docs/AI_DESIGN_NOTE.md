@@ -2,13 +2,13 @@
 
 ## Genuine problem and technique
 
-Natural-language scene creation saves residents from translating an intention into several precise device controls. A configured OpenAI-compatible LLM converts that request into a constrained `SceneProposal` JSON object. It receives only the request, supported prototype devices/actions and resident role.
+Natural-language scene creation saves residents from translating an intention into several precise device controls. `AIService` calls the replaceable `AIProvider` interface; the current `OpenAICompatibleProvider` converts the request into a constrained `SceneProposal` JSON object. It receives only the request, supported prototype devices/actions, resident role and a small few-shot set from `backend/app/ai/seed_context.py`.
 
 The output is parsed by Pydantic with `extra=forbid`, then checked deterministically against known device IDs, device/action compatibility, value ranges, and resident policy. The provider cannot call APIs for a device and has no database or device credentials.
 
 ## Human control and fallback
 
-The LLM produces a **proposal only**. A resident reviews its trigger, conditions, actions and short explanation, then explicitly confirms it. Only the automation engine can call `DeviceService`. Unsupported, malformed, ambiguous, unsafe or unavailable AI responses yield a visible status and direct the resident to the existing manual drag-and-drop builder.
+The LLM produces a **proposal only**. A server-issued proposal ID is persisted before review; fabricated or modified client proposals cannot be confirmed. A resident reviews its trigger, conditions, actions and short explanation, then explicitly confirms it. Only the automation engine can call `DeviceService`. Unsupported, malformed, ambiguous, unsafe or unavailable AI responses yield a visible status and direct the resident to the existing manual drag-and-drop builder.
 
 ## Limitations
 

@@ -34,7 +34,7 @@ Source data structures at 1171–1238 define: action palette (AC, lights, curtai
 
 ## CP3 implementation mapping
 
-The React app preserves the original information hierarchy and visual language for the Resident/Home/Devices/Scenes flow. The source remains the complete reference for the unconnected secondary simulations. The new connected route is deliberately confined to existing scene concepts: `resident_arrives`, `time_after`, and prototype device kinds/actions. It replaces only the old `NL_MAP` fixed phrase logic at 1593–1624; it does not make AI control a device.
+The React entry point imports and renders the complete approved HTML body, styles and browser behaviour. All Resident, Visitor, Operator and Developer screens—and every original browser-simulated interaction—therefore come from the same source of truth rather than a reduced React recreation. The new connected route is deliberately confined to the existing natural-language scene composer and existing scene concepts: `resident_arrives`, `time_after`, and prototype device kinds/actions. It replaces only the old `NL_MAP` click path at runtime; it does not make AI control a device and it does not modify `livlink-prototype.html`.
 
 ## Classification summary
 

@@ -1,13 +1,28 @@
-# Architecture
+# CP3 architecture
 
 ```text
-React frontend
+React/Vite
     | REST
-FastAPI modular monolith
-    |-- AIService (OpenAI-compatible structured parser; proposal only)
-    |-- SceneService -> Pydantic + policy checks -> PostgreSQL scene
-    |-- AutomationService -> DeviceService -> simulated acknowledgement
-    `-- ActivityService -> PostgreSQL audit events
+FastAPI route
+    |-- AIService
+    |     `-- AIProvider interface
+    |           `-- OpenAICompatibleProvider -> configured LLM
+    |-- Pydantic schema validation
+    |-- deterministic policy validation
+    |-- SceneService -> PostgreSQL scenes/drafts/audit
+    `-- AutomationEngine
+           `-- DeviceService
+                  `-- DeviceAdapter interface
+                         `-- MockDeviceAdapter / emulator
+                                `-- simulated AC / lights / curtains / lock / TV
 ```
 
-PostgreSQL stores `devices` (prototype device state), `scenes` (confirmed trigger/conditions/actions) and `activity_events`. No microservices, MQTT broker or physical-hardware claims are introduced. A future real-IoT adapter belongs behind `DeviceService`.
+AI produces only a proposal. It has no database or device dependency. The application validates and stores the proposal; only confirmed scenes can reach the automation engine.
+
+## Device boundary
+
+Hackathon: `DeviceService → MockDeviceAdapter`
+
+Future pilot: `DeviceService → MQTTDeviceAdapter → Real IoT Gateway`
+
+Automation depends on `DeviceService`, never the mock implementation. `MockDeviceAdapter` implements supported prototype state changes and returns an acknowledgement after simulated latency. No physical hardware or MQTT broker is claimed.

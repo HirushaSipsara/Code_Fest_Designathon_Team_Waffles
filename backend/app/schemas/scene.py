@@ -38,6 +38,7 @@ class SceneProposal(BaseModel):
     actions: list[SceneAction] = Field(default_factory=list, max_length=8)
     status: Literal["ready", "needs_clarification", "unsupported", "service_unavailable", "rejected"]
     explanation: str = Field(min_length=1, max_length=280)
+    reason: str | None = None
 
 
 class ParseRequest(BaseModel):
@@ -47,7 +48,6 @@ class ParseRequest(BaseModel):
 
 class ProposalResponse(SceneProposal):
     proposal_id: str | None = None
-    reason: str | None = None
 
 
 class ConfirmRequest(BaseModel):

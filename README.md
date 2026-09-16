@@ -1,6 +1,6 @@
 # LIVLINK CP3 implementation
 
-The approved `livlink-prototype.html` remains untouched as the visual product reference. This repository now contains a React/Vite implementation of the CP3 end-to-end AI scene slice and a FastAPI modular-monolith backend.
+The approved `livlink-prototype.html` remains untouched and is now rendered in full by the React/Vite entry point. This preserves every original persona, screen, control and browser-simulated interaction instead of maintaining a reduced duplicate frontend. React adds the CP3 backend connection only at the existing natural-language scene composer; the rest of the approved prototype continues to run exactly from the source HTML.
 
 See [docs/CP3_DEMO.md](docs/CP3_DEMO.md) for the short demonstration and [docs/FRONTEND_ANALYSIS.md](docs/FRONTEND_ANALYSIS.md) for the prototype inventory.
 
@@ -15,4 +15,6 @@ See [docs/CP3_DEMO.md](docs/CP3_DEMO.md) for the short demonstration and [docs/F
 
 Run backend tests from the repository root with `set PYTHONPATH=%CD%\backend && python -m pytest backend\tests -q`.
 
-The CP3 database has three tables: `devices`, `scenes` and `activity_events`. The only physical-device substitute is the explicitly simulated `DeviceService` adapter.
+The CP3 database has `devices`, `scene_drafts`, `scenes` and `activity_events`. The device path is explicitly `AutomationEngine → DeviceService → DeviceAdapter → MockDeviceAdapter`; there is no physical hardware.
+
+On the current development host, a fresh npm download is blocked because the registry is re-issued by a Fortinet TLS appliance whose CA is not installed. TLS checks were not disabled. Build verification used the compatible React 18.3.1/Vite 6.4.3 packages already installed locally under `F:\Projects\Jarvis\node_modules` through a gitignored junction.

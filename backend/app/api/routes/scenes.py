@@ -6,7 +6,8 @@ from app.services.activity_service import recent
 from app.services.ai_service import AIService
 from app.services.automation_service import handle_arrival
 from app.services.device_service import supported_devices
-from app.services.scene_service import assess_proposal, save_scene
+from app.services.scene_service import assess_proposal, confirmed_draft, save_scene
+from app.models.entities import Scene
 
 router = APIRouter(prefix="/api", tags=["LIVLINK scenes"])
 
@@ -29,11 +30,21 @@ def parse_scene(payload: ParseRequest, db: Session = Depends(get_db)):
 
 @router.post("/scenes/confirm")
 def confirm_scene(payload: ConfirmRequest, db: Session = Depends(get_db)):
+    draft = confirmed_draft(db, payload.proposal, payload.role)
+    if not draft:
+        raise HTTPException(status_code=422, detail="Proposal was not produced by the AI parser or was already used.")
     checked = assess_proposal(db, payload.proposal, payload.role)
     if checked.status != "ready":
         raise HTTPException(status_code=422, detail=checked.reason or "Only a safe, ready proposal may be confirmed.")
     scene = save_scene(db, payload.proposal, payload.role)
+    draft.consumed = True
+    db.commit()
     return {"id": scene.id, "name": scene.name, "status": "confirmed"}
+
+
+@router.get("/scenes")
+def scenes(db: Session = Depends(get_db)):
+    return {"scenes": [{"id": s.id, "name": s.name, "role": s.role, "trigger": s.trigger, "conditions": s.conditions, "actions": s.actions} for s in db.query(Scene).order_by(Scene.id.desc()).all()]}
 
 
 @router.post("/simulation/resident-arrival")

@@ -1,0 +1,14 @@
+[
+  {"request":"When I arrive after 7 PM, set the AC to 24°C.","expected":"ready"},
+  {"request":"When I get home after 8 PM, turn the bedroom light to 35% and cool the bedroom to 23°C.","expected":"ready"},
+  {"request":"When I arrive after 6 PM, turn on the living room light.","expected":"ready"},
+  {"request":"When I return after 9 PM, close the bedroom curtains.","expected":"ready"},
+  {"request":"When I arrive after 5 PM, turn on the television.","expected":"ready"},
+  {"request":"Make it nice.","expected":"needs_clarification"},
+  {"request":"Make the house comfortable.","expected":"needs_clarification"},
+  {"request":"Turn the light on later.","expected":"needs_clarification"},
+  {"request":"Order me pizza.","expected":"unsupported"},
+  {"request":"Open the neighbour's door.","expected":"unsupported"},
+  {"request":"Transfer my electricity bill.","expected":"unsupported"},
+  {"request":"Unlock my front door when I arrive.","expected":"rejected"}
+]

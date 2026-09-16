@@ -9,5 +9,7 @@ from app.models.entities import Base
 
 @pytest.fixture(autouse=True)
 def database_schema():
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield
+    Base.metadata.drop_all(engine)

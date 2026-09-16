@@ -1,37 +1,151 @@
-import { useEffect, useState } from 'react';
-import { Action, Device, Proposal, confirmScene, getActivity, getDevices, parseScene, simulateArrival } from './api';
+import { useLayoutEffect, useRef } from 'react';
+import prototypeDocument from '../../livlink-prototype.html?raw';
+import { confirmScene, parseScene, simulateArrival, type Device, type Proposal } from './api';
 
-type View = 'home' | 'devices' | 'scenes' | 'access' | 'stats' | 'services';
-type Role = 'owner' | 'occupier' | 'tenant';
-const icon: Record<string, string> = { ac: '❄️', light: '💡', tv: '📺', curtain: '🪟', lock: '🔒' };
-const nav: [View, string, string][] = [['home', '🏠', 'Home'], ['devices', '🎛️', 'Devices'], ['scenes', '🎬', 'Scenes'], ['access', '🔑', 'Access'], ['stats', '🧾', 'Bills'], ['services', '🧰', 'Services']];
-const actionText = (a: Action, devices: Device[]) => { const d = devices.find(x => x.id === a.device_id); const name = d?.name || a.device_id; const value = a.value == null ? '' : a.action === 'set_temperature' ? ` → ${a.value}°C` : ` → ${a.value}%`; return `${name} · ${a.action.replace('_', ' ')}${value}`; };
+const styleText = prototypeDocument.match(/<style>([\s\S]*?)<\/style>/i)?.[1] ?? '';
+const bodyMarkup = prototypeDocument.match(/<body>([\s\S]*?)<script>/i)?.[1] ?? '';
+const prototypeScript = prototypeDocument.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
 
-export default function App() {
-  const [view, setView] = useState<View>('home');
-  const [role, setRole] = useState<Role>('owner');
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [events, setEvents] = useState<{ id: number; message: string; created_at: string | null }[]>([]);
-  const [toast, setToast] = useState('');
-  const load = async () => { try { const [d, a] = await Promise.all([getDevices(), getActivity()]); setDevices(d.devices); setEvents(a.events); } catch { setToast('Backend unavailable — start FastAPI and PostgreSQL to run the CP3 slice.'); } };
-  useEffect(() => { void load(); }, []);
-  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3600); };
-  return <div className="page">
-    <header><a className="brand" href="#top">LIVLINK</a><span className="brand-sub">Integrated Smart Living Platform</span><div className="personas" aria-label="Prototype audience preview"><button className="active">Resident</button><button disabled>Visitor</button><button disabled>Operator</button><button disabled>Developer</button></div></header>
-    <div className="app-shell">
-      <nav className="sidenav" aria-label="Resident sections">{nav.map(([id, i, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><span>{i}</span>{label}</button>)}<div className="role"><small>Preview role</small>{(['owner', 'occupier', 'tenant'] as Role[]).map(x => <button key={x} className={role === x ? 'active' : ''} onClick={() => setRole(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}</div></nav>
-      <main className="content">{view === 'home' && <Home devices={devices} events={events} onScenes={() => setView('scenes')} />}{view === 'devices' && <Devices devices={devices} />}{view === 'scenes' && <Scenes role={role} devices={devices} reload={load} notify={notify} />}{view === 'access' && <StaticPanel title="Access & the Smart Visitor Pass" tag="Working simulation" text="My passes and visitor-pass creation remain represented in the approved prototype. Backend integration is deliberately secondary to the CP3 AI scene slice." />}{view === 'stats' && <StaticPanel title="Bills & energy" tag="Seeded example" text="Energy history and provider statements are seeded demo data in the approved prototype; they are not part of the CP3 persistence slice." />}{view === 'services' && <StaticPanel title="Services" tag="Working simulation" text="Facility bookings, maintenance payments, memberships and issue reporting remain in the approved prototype. Their backend integration is not claimed in this CP3 build." />}</main>
-    </div>
-    {toast && <div className="toast" role="status">{toast}</div>}
-  </div>;
+declare global {
+  interface Window {
+    toast?: (message: string) => void;
+    logActivity?: (message: string, category?: string) => void;
+  }
 }
 
-function Home({ devices, events, onScenes }: { devices: Device[]; events: { id: number; message: string; created_at: string | null }[]; onScenes: () => void }) { return <><section className="welcome"><div><p className="eyebrow">UNIT 1204 · MERIDIAN RESIDENCES</p><h1>Welcome home, Hirusha</h1><p>Your living room has {devices.filter(d => d.state.on).length} devices on. The connected device layer below is a simulation.</p></div><span className="house">⌂</span></section><div className="grid"><article className="card"><div className="section-head"><h2>Quick scenes</h2><button className="link" onClick={onScenes}>Open scenes</button></div><p>Good Morning · Leaving Home · Movie Time · Sleep Mode</p><span className="tag build">Working simulation</span></article><article className="card"><div className="section-head"><h2>Device status</h2><span className="tag build">Simulated</span></div>{devices.slice(0, 4).map(d => <p key={d.id}>{icon[d.kind]} {d.name} <b>{d.state.on === false ? 'Off' : 'Connected'}</b></p>)}</article></div><article className="card"><div className="section-head"><h2>Activity</h2><span className="fine">access, scenes & commands</span></div>{events.length ? events.slice(0, 6).map(e => <p className="activity" key={e.id}><span>●</span>{e.message}</p>) : <p className="fine">No backend activity yet.</p>}</article></>; }
+function escapeHtml(value: unknown) {
+  return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]!);
+}
 
-function Devices({ devices }: { devices: Device[] }) { return <><article className="card"><div className="section-head"><h1>Devices</h1><span className="tag build">Working simulation</span></div><p className="fine">The FastAPI simulator provides these prototype devices and acknowledges only supported commands.</p></article><div className="grid">{devices.map(d => <article className="card device" key={d.id}><span className="device-icon">{icon[d.kind]}</span><h2>{d.name}</h2><p>{d.room} · {d.kind}</p><code>{JSON.stringify(d.state)}</code><span className="tag build">SIMULATED</span></article>)}</div></>; }
+function currentRole() {
+  return document.querySelector<HTMLButtonElement>('#rolePill button.active')?.dataset.role || 'owner';
+}
 
-function Scenes({ role, devices, reload, notify }: { role: Role; devices: Device[]; reload: () => Promise<void>; notify: (m: string) => void }) { const [input, setInput] = useState('When I arrive home after 7 PM, set the AC to 24°C and turn on the living room light.'); const [proposal, setProposal] = useState<Proposal | null>(null); const [busy, setBusy] = useState(false); const parse = async () => { setBusy(true); try { setProposal(await parseScene(input, role)); } catch (e) { notify(e instanceof Error ? e.message : 'Could not contact AI parser.'); } finally { setBusy(false); } }; const confirm = async () => { if (!proposal) return; setBusy(true); try { const saved = await confirmScene(proposal, role); notify(`${saved.name} confirmed. It will only run after a simulated arrival.`); await reload(); } catch (e) { notify(e instanceof Error ? e.message : 'Could not confirm scene.'); } finally { setBusy(false); } }; const arrival = async () => { setBusy(true); try { const result = await simulateArrival(); notify(result.executions.length ? `${result.executions.length} scene(s) ran on simulated devices.` : 'No confirmed arrival scene matched the current time.'); await reload(); } catch (e) { notify(e instanceof Error ? e.message : 'Arrival simulation failed.'); } finally { setBusy(false); } }; return <><article className="card"><div className="section-head"><h1>Scenes</h1><span className="tag build">Working simulation</span></div><p>A scene bundles several device actions into one step. AI proposals are reviewed before any automation runs.</p></article><article className="card ai-card"><div className="section-head"><h2>Create a scene from natural language</h2><span className="tag real">AI provider required</span></div><p className="fine">LIVLINK sends only your request, allowed devices/actions and resident role to a configured OpenAI-compatible model. It cannot control devices.</p><label htmlFor="scene-request">Scene request</label><div className="prompt"><input id="scene-request" value={input} onChange={e => setInput(e.target.value)} /><button className="primary" disabled={busy} onClick={parse}>{busy ? 'Creating…' : 'Create'}</button></div>{proposal && <ProposalCard proposal={proposal} devices={devices} onConfirm={confirm} onManual={() => notify('Use the existing visual drag-and-drop builder in livlink-prototype.html.')} disabled={busy} />}</article><article className="card demo"><div><p className="eyebrow">SIMULATION / DEMO ONLY</p><h2>Simulate Resident Arrival</h2><p className="fine">Runs confirmed, matching scenes through the deterministic automation engine. Device acknowledgements and audit events appear above and on Home.</p></div><button className="primary" disabled={busy} onClick={arrival}>Simulate arrival</button></article><article className="card"><div className="section-head"><h2>Build a scene by dragging devices</h2><span className="tag build">Working simulation</span></div><p className="fine">The approved prototype contains the existing accessible drag-and-drop/tap scene builder, including AC, lights, curtains, television and door-lock controls. It is the required fallback if AI parsing is unavailable or unclear.</p></article></>; }
+function deviceName(actionDeviceId: string, devices: Device[]) {
+  const device = devices.find(item => item.id === actionDeviceId);
+  return device ? `${device.room} ${device.name}` : actionDeviceId;
+}
 
-function ProposalCard({ proposal, devices, onConfirm, onManual, disabled }: { proposal: Proposal; devices: Device[]; onConfirm: () => void; onManual: () => void; disabled: boolean }) { const ready = proposal.status === 'ready'; return <div className="proposal" aria-live="polite"><div className="section-head"><h2>Proposed: {proposal.scene_name}</h2><span className={`tag ${ready ? 'ready' : 'warn'}`}>{proposal.status.replaceAll('_', ' ')}</span></div><p><b>When:</b> resident arrives{proposal.conditions.map(c => ` · after ${c.value}`).join('')}</p>{proposal.actions.length > 0 && <ul>{proposal.actions.map((a, i) => <li key={`${a.device_id}-${i}`}>{actionText(a, devices)}</li>)}</ul>}<p className="fine">{proposal.explanation}</p>{proposal.reason && <p className="error">{proposal.reason}</p>}<div className="actions">{ready ? <button className="primary" disabled={disabled} onClick={onConfirm}>Confirm scene</button> : null}<button className="secondary" onClick={onManual}>Edit in visual builder</button></div></div>; }
+function actionLabel(proposal: Proposal, devices: Device[]) {
+  return proposal.actions.map(action => {
+    const suffix = action.value == null ? '' : action.action === 'set_temperature' ? ` → ${action.value}°C` : ` → ${action.value}%`;
+    return `${deviceName(action.device_id, devices)} · ${action.action.replace(/_/g, ' ')}${suffix}`;
+  });
+}
 
-function StaticPanel({ title, tag, text }: { title: string; tag: string; text: string }) { return <article className="card"><div className="section-head"><h1>{title}</h1><span className="tag seeded">{tag}</span></div><p>{text}</p></article>; }
+function renderFallback(host: HTMLElement, proposal: Proposal) {
+  host.innerHTML = `<div class="card tight" style="background:var(--surface-2);">
+    <div class="row between"><b style="font-size:15px;">AI scene creation is ${escapeHtml(proposal.status.replace(/_/g, ' '))}.</b><span class="tag tag-sim"><span class="dot"></span>${escapeHtml(proposal.status)}</span></div>
+    <p class="fine" style="margin-top:6px;">${escapeHtml(proposal.reason || proposal.explanation)}</p>
+    <button class="btn btn-ghost btn-sm" id="backendManualBuilder">Use the visual scene builder</button>
+  </div>`;
+  document.querySelector('#backendManualBuilder')?.addEventListener('click', () => document.querySelector('#dndPalette')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+}
+
+function renderProposal(host: HTMLElement, proposal: Proposal, devices: Device[]) {
+  const actions = actionLabel(proposal, devices);
+  host.innerHTML = `<div class="card tight" style="background:var(--accent-soft);border-color:transparent;">
+    <div class="row between"><b style="font-size:15.5px;">Proposed: ${escapeHtml(proposal.scene_name)}</b><span class="tag tag-build"><span class="dot"></span>validated draft</span></div>
+    <div class="stack" style="gap:5px;margin:10px 0;">
+      <div class="fine"><b>WHEN</b> resident arrives</div>
+      <div class="fine"><b>IF</b> ${proposal.conditions.length ? escapeHtml(proposal.conditions.map(item => `time is after ${item.value}`).join(' and ')) : 'no condition'}</div>
+      ${actions.map(action => `<div class="fine">• ${escapeHtml(action)}</div>`).join('')}
+    </div>
+    <p class="fine">${escapeHtml(proposal.explanation)}</p>
+    <p class="fine" style="color:var(--success);font-weight:700;">✓ Devices recognised &nbsp; ✓ Values valid &nbsp; ✓ Permission allowed</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" id="backendConfirmScene">Confirm &amp; Save</button>
+      <button class="btn btn-ghost btn-sm" id="backendEditScene">Edit in visual builder</button>
+    </div>
+  </div>`;
+  document.querySelector('#backendEditScene')?.addEventListener('click', () => document.querySelector('#dndPalette')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  document.querySelector('#backendConfirmScene')?.addEventListener('click', async event => {
+    const button = event.currentTarget as HTMLButtonElement;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+      const saved = await confirmScene(proposal, currentRole());
+      button.textContent = 'Saved';
+      window.toast?.(`${saved.name} confirmed and stored in PostgreSQL`);
+      window.logActivity?.(`Scene confirmed — ${saved.name} (backend id ${saved.id})`, 'ok');
+      const controls = button.parentElement;
+      controls?.insertAdjacentHTML('beforeend', '<button class="btn btn-ghost btn-sm" id="backendArrival">SIMULATION ONLY · Simulate Resident Arrival</button>');
+      document.querySelector('#backendArrival')?.addEventListener('click', async arrivalEvent => {
+        const arrivalButton = arrivalEvent.currentTarget as HTMLButtonElement;
+        arrivalButton.disabled = true;
+        arrivalButton.textContent = 'Requested…';
+        try {
+          const response = await simulateArrival();
+          const results = response.executions.flatMap(item => item.results);
+          arrivalButton.textContent = results.length ? 'Acknowledged' : 'No matching scene';
+          window.toast?.(results.length ? `Requested → Acknowledged by ${results.length} simulated device${results.length === 1 ? '' : 's'}` : 'No confirmed scene matched the current time');
+          window.logActivity?.(`Simulated arrival — ${results.length} device acknowledgement${results.length === 1 ? '' : 's'}`, results.length ? 'ok' : 'warn');
+        } catch (error) {
+          arrivalButton.disabled = false;
+          arrivalButton.textContent = 'Simulation failed · retry';
+          window.toast?.(error instanceof Error ? error.message : 'Arrival simulation failed');
+        }
+      });
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Confirm & Save';
+      window.toast?.(error instanceof Error ? error.message : 'Scene confirmation failed');
+    }
+  });
+}
+
+function wireBackendSceneComposer() {
+  const input = document.querySelector<HTMLInputElement>('#nlInput');
+  const result = document.querySelector<HTMLElement>('#nlResult');
+  const oldSubmit = document.querySelector<HTMLButtonElement>('#nlSubmit');
+  if (!input || !result || !oldSubmit) return;
+
+  const submit = oldSubmit.cloneNode(true) as HTMLButtonElement;
+  oldSubmit.replaceWith(submit); // removes the prototype's fixed NL_MAP click listener
+  const headingTag = submit.closest('.card')?.querySelector<HTMLElement>('.section-head .tag');
+  if (headingTag) headingTag.innerHTML = '<span class="dot"></span>Backend AI';
+
+  const run = async (text: string) => {
+    if (!text.trim()) { window.toast?.('Describe the scene you want first'); return; }
+    submit.disabled = true;
+    submit.textContent = 'Interpreting…';
+    result.innerHTML = '<div class="card tight" style="background:var(--surface-2);"><b>LIVLINK is interpreting your request…</b><p class="fine" style="margin-top:6px;">The request is being validated by FastAPI. No device will run without confirmation.</p></div>';
+    try {
+      const [proposal, deviceResponse] = await Promise.all([parseScene(text, currentRole()), fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/devices`).then(response => response.json())]);
+      if (proposal.status === 'ready') renderProposal(result, proposal, deviceResponse.devices || []);
+      else renderFallback(result, proposal);
+    } catch (error) {
+      renderFallback(result, { scene_name: 'Manual scene required', trigger: { type: 'resident_arrives' }, conditions: [], actions: [], status: 'service_unavailable', explanation: 'Use the visual scene builder instead.', reason: error instanceof Error ? error.message : 'Backend unavailable' });
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Create';
+    }
+  };
+  submit.addEventListener('click', () => void run(input.value));
+
+  document.querySelectorAll<HTMLButtonElement>('.chip[data-nl]').forEach(oldChip => {
+    const chip = oldChip.cloneNode(true) as HTMLButtonElement;
+    oldChip.replaceWith(chip);
+    chip.addEventListener('click', () => { input.value = chip.dataset.nl || ''; void run(input.value); });
+  });
+}
+
+export default function App() {
+  const host = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!host.current) return;
+    const style = document.createElement('style');
+    style.dataset.livlinkPrototype = 'true';
+    style.textContent = styleText;
+    document.head.appendChild(style);
+    const font = document.createElement('link');
+    font.rel = 'stylesheet';
+    font.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap';
+    document.head.appendChild(font);
+    host.current.innerHTML = bodyMarkup;
+    Function(`${prototypeScript}\nwindow.toast = toast; window.logActivity = logActivity;`)();
+    wireBackendSceneComposer();
+    return () => { style.remove(); font.remove(); };
+  }, []);
+  return <div ref={host} />;
+}
