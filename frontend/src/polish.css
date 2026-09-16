@@ -1,0 +1,169 @@
+/* LIVLINK presentation polish. Geometry and interactions stay in the approved prototype. */
+:root {
+  --bg: #eef0fb;
+  --bg-2: #f7f8fe;
+  --surface-2: #f5f6fd;
+  --surface-3: #eceefa;
+  --border: #dfe2f2;
+  --border-strong: #c8cdea;
+  --text: #24213f;
+  --text-2: #5c6082;
+  --text-3: #6e7296;
+  --accent: #6758ce;
+  --accent-2: #496fe8;
+  --accent-soft: #eeebfc;
+  --accent-soft-text: #5443b6;
+  --success: #147c54;
+  --warning: #925800;
+  --critical: #b52546;
+  --shadow-sm: 0 1px 3px rgba(42, 35, 92, .08), 0 5px 14px -10px rgba(55, 49, 119, .18);
+  --shadow-md: 0 10px 30px -12px rgba(48, 43, 115, .21);
+  --shadow-lg: 0 22px 56px -18px rgba(45, 37, 107, .27);
+}
+
+body {
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: -.018em;
+  font-optical-sizing: auto;
+}
+
+.masthead-text .name, .stat-tile .val, .dial-read .num {
+  letter-spacing: -.025em;
+  font-optical-sizing: auto;
+}
+
+.eyebrow, .sidenav .role-label, table.fleet th {
+  letter-spacing: .075em;
+}
+
+.card, .device-tile, .pass-card, .bill-card, .membership-row,
+.check-row, .dnd-action-row, .qr-box {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidenav, .persona-switch, .tabbar {
+  background: rgba(255, 255, 255, .94);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  backdrop-filter: blur(14px) saturate(125%);
+  box-shadow: var(--shadow-sm);
+}
+
+.ai-card {
+  box-shadow: var(--shadow-sm);
+}
+
+.btn, .icon-btn, .comfort-toggle, .chip, .dnd-chip,
+.persona-switch button, .sidenav button, .tabbar button,
+.pill-toggle button, .notif-row {
+  transition: background-color .16s ease, border-color .16s ease,
+    color .16s ease, box-shadow .16s ease, filter .16s ease,
+    transform .12s ease, opacity .16s ease;
+}
+
+.btn-primary:hover, .persona-switch button.active:hover {
+  filter: brightness(1.045);
+  opacity: 1;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-ghost:hover, .btn-line:hover, .icon-btn:hover,
+.comfort-toggle:hover, .chip:not(.active):hover, .dnd-chip:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:active, .icon-btn:active, .comfort-toggle:active, .chip:active,
+.dnd-chip:active, .persona-switch button:active, .sidenav button:active,
+.tabbar button:active, .pill-toggle button:active, .notif-row:active {
+  transform: scale(.985);
+}
+
+button:disabled, .btn:disabled {
+  box-shadow: none;
+  filter: none;
+  transform: none;
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+input:not([type=checkbox]):not([type=range]), select, textarea {
+  transition: border-color .16s ease, box-shadow .16s ease,
+    background-color .16s ease;
+}
+
+input:not([type=checkbox]):not([type=range]):focus,
+select:focus, textarea:focus {
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 15%, transparent);
+}
+
+input[type=range] {
+  accent-color: var(--accent);
+}
+
+.switch .track {
+  box-shadow: inset 0 1px 2px rgba(41, 35, 97, .1);
+}
+
+.switch .thumb {
+  box-shadow: 0 1px 4px rgba(35, 30, 81, .23);
+}
+
+.notif-row.critical:hover {
+  background: color-mix(in srgb, var(--critical-bg) 45%, var(--surface));
+}
+
+.status-dot, .tag .dot, .notif-row .unread-dot {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.ack-flash {
+  color: var(--accent-soft-text);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .sidenav, .persona-switch, .tabbar {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: #777b9b;
+    --border-strong: #535777;
+    --text-2: #393b5b;
+    --text-3: #444667;
+    --accent-soft-text: #372499;
+    --warning: #704100;
+    --critical: #9e1233;
+  }
+  .sidenav, .persona-switch, .tabbar {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .icon-btn, .comfort-toggle, .chip, .dnd-chip,
+  .persona-switch button, .sidenav button, .tabbar button,
+  .pill-toggle button, .notif-row, input, select, textarea {
+    transition-duration: .001ms !important;
+  }
+  .btn:active, .icon-btn:active, .comfort-toggle:active, .chip:active,
+  .dnd-chip:active, .persona-switch button:active, .sidenav button:active,
+  .tabbar button:active, .pill-toggle button:active, .notif-row:active {
+    transform: none;
+  }
+}

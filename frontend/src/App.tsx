@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import prototypeDocument from '../../livlink-prototype.html?raw';
+import polishStyles from './polish.css?inline';
 import { confirmScene, parseScene, simulateArrival, type Device, type Proposal } from './api';
 
 const styleText = prototypeDocument.match(/<style>([\s\S]*?)<\/style>/i)?.[1] ?? '';
@@ -138,6 +139,10 @@ export default function App() {
     style.dataset.livlinkPrototype = 'true';
     style.textContent = styleText;
     document.head.appendChild(style);
+    const polish = document.createElement('style');
+    polish.dataset.livlinkPolish = 'true';
+    polish.textContent = polishStyles;
+    document.head.appendChild(polish);
     const font = document.createElement('link');
     font.rel = 'stylesheet';
     font.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap';
@@ -145,7 +150,7 @@ export default function App() {
     host.current.innerHTML = bodyMarkup;
     Function(`${prototypeScript}\nwindow.toast = toast; window.logActivity = logActivity;`)();
     wireBackendSceneComposer();
-    return () => { style.remove(); font.remove(); };
+    return () => { style.remove(); polish.remove(); font.remove(); };
   }, []);
   return <div ref={host} />;
 }

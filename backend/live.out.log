@@ -8,3 +8,6 @@ INFO:     127.0.0.1:7399 - "GET /api/scenes HTTP/1.1" 200 OK
 INFO:     127.0.0.1:14142 - "OPTIONS /api/ai/scenes/parse HTTP/1.1" 200 OK
 INFO:     127.0.0.1:10758 - "GET /api/devices HTTP/1.1" 200 OK
 INFO:     127.0.0.1:14142 - "POST /api/ai/scenes/parse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13574 - "OPTIONS /api/ai/scenes/parse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13574 - "POST /api/ai/scenes/parse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8916 - "GET /api/devices HTTP/1.1" 200 OK
