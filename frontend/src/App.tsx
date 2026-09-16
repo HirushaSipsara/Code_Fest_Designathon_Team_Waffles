@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import prototypeDocument from '../../livlink-prototype.html?raw';
 import polishStyles from './polish.css?inline';
-import { confirmScene, parseScene, simulateArrival, getDevices, getScenes, deleteScene, getInsights, dismissInsight, applyInsight, getMqttStatus, type Device, type Proposal, type SavedScene, type AIInsight } from './api';
+import { confirmScene, parseScene, simulateArrival, getDevices, getScenes, deleteScene, getInsights, dismissInsight, applyInsight, getMqttStatus, getMaintenanceRequests, assignMaintenanceRequest, resolveMaintenanceRequest, type Device, type Proposal, type SavedScene, type AIInsight, type MaintenanceRequest } from './api';
 
 const styleText = prototypeDocument.match(/<style>([\s\S]*?)<\/style>/i)?.[1] ?? '';
 const bodyMarkup = prototypeDocument.match(/<body>([\s\S]*?)<script>/i)?.[1] ?? '';
@@ -12,6 +12,7 @@ declare global {
     toast?: (message: string) => void;
     logActivity?: (message: string, category?: string) => void;
     renderSavedDbScenes?: () => void;
+    openOperatorMaintenance?: () => void;
   }
 }
 
@@ -276,6 +277,16 @@ function renderInsightCard(insight: AIInsight): string {
       <p class="fine" style="margin-top:8px;">${escapeHtml(String(body.recommendation || ''))}</p>`;
   } else if (insight.category === 'maintenance') {
     const factors = (body.factors as string[]) || [];
+    const trend = (body.battery_trend as Record<string, unknown> | undefined) || {};
+    const request = (body.maintenance_request as Record<string, unknown> | undefined) || {};
+    const requestStatus = String(request.status || 'pending');
+    const requestLabel = requestStatus === 'assigned'
+      ? `Assigned to ${String(request.assigned_to || 'operator')}`
+      : requestStatus === 'resolved'
+        ? 'Resolved by Operator'
+        : requestStatus === 'open'
+          ? 'Request sent to Operator'
+          : 'Preparing operator request';
     detail = `
       <div class="insight-stats">
         <div class="insight-stat"><span class="insight-stat-label">Battery</span><span class="insight-stat-value ${(body.battery_pct as number) < 20 ? 'critical-text' : ''}">${body.battery_pct}%</span></div>
@@ -283,11 +294,12 @@ function renderInsightCard(insight: AIInsight): string {
         <div class="insight-stat"><span class="insight-stat-label">Risk</span><span class="insight-stat-value ${body.risk_level === 'high' ? 'critical-text' : 'warning-text'}">${String(body.risk_level).toUpperCase()}</span></div>
       </div>
       <div class="insight-factors">${factors.map(f => `<span class="insight-factor">${escapeHtml(f)}</span>`).join('')}</div>
+      <p class="fine" style="margin-top:8px;">Decision: ${escapeHtml(String(trend.start_pct ?? '—'))}% → ${escapeHtml(String(trend.end_pct ?? body.battery_pct))}% over ${escapeHtml(String(trend.reading_count ?? '—'))} readings; ${escapeHtml(String(body.connection_failures ?? '—'))} connection failures.</p>
       <p class="fine" style="margin-top:8px;">${escapeHtml(String(body.recommendation || ''))}</p>
-      <div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.58); border:1px solid rgba(190,70,85,.16);">
-        <b style="font-size:13px;">Demo automation: low-battery route</b>
-        <p class="fine" style="margin:3px 0 8px;">Seeded 8% lock telemetry is below the 10% threshold, so LIVLINK automatically creates a simulated operator maintenance request.</p>
-        <button class="btn btn-secondary btn-sm" onclick="window.openMockMaintenanceRequest?.()">View operator request</button>
+      <div class="maintenance-decision" style="margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.58); border:1px solid rgba(190,70,85,.16);">
+        <b style="font-size:13px;">${escapeHtml(requestLabel)}</b>
+        <p class="fine" style="margin:3px 0 8px;">The automated action only opens a maintenance work item. The operator keeps control of assignment and resolution.</p>
+        <button class="btn btn-secondary btn-sm" onclick="window.openOperatorMaintenance?.()">View operator request</button>
       </div>`;
   } else if (insight.category === 'automation') {
     const scene = body.suggested_scene as Record<string, unknown> | undefined;
@@ -308,8 +320,7 @@ function renderInsightCard(insight: AIInsight): string {
     ? `<button class="btn btn-primary btn-sm" data-apply="${insight.id}">Accept</button>
        <button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Not now</button>`
     : insight.category === 'maintenance'
-    ? `<button class="btn btn-primary btn-sm" onclick="window.toast?.('Technician scheduled (simulated)')">Schedule technician</button>
-       <button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Dismiss</button>`
+    ? `<button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Dismiss resident alert</button>`
     : `<button class="btn btn-ghost btn-sm" data-dismiss="${insight.id}">Dismiss</button>`;
 
   return `<div class="insight-card ${config.colorClass} ${severity === 'critical' ? 'insight-pulse' : ''}" data-insight-id="${insight.id}">
@@ -325,6 +336,87 @@ function renderInsightCard(insight: AIInsight): string {
     ${detail}
     <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">${buttons}</div>
   </div>`;
+}
+
+function requestStatusText(request: MaintenanceRequest) {
+  if (request.status === 'assigned') return `Assigned · ${request.assigned_to || 'Facilities technician'}`;
+  if (request.status === 'resolved') return 'Resolved';
+  return 'Open';
+}
+
+function wireMaintenanceRequests() {
+  const queue = document.querySelector<HTMLElement>('#maintQueue');
+  if (!queue) return;
+  let disposed = false;
+
+  const refresh = async () => {
+    try {
+      const { requests } = await getMaintenanceRequests();
+      if (disposed) return;
+      if (!requests.length) {
+        queue.innerHTML = '<p class="fine" style="padding:10px 0;">No AI-routed maintenance requests yet.</p>';
+        return;
+      }
+      queue.innerHTML = requests.map(request => {
+        const decision = request.decision;
+        const statusClass = request.status === 'resolved' ? 'tag-build' : request.status === 'assigned' ? 'tag-warning' : 'tag-critical';
+        const controls = request.status === 'open'
+          ? `<button class="btn btn-primary btn-sm" data-request-assign="${request.id}">Assign</button><button class="btn btn-ghost btn-sm" data-request-resolve="${request.id}">Resolve</button>`
+          : request.status === 'assigned'
+            ? `<button class="btn btn-primary btn-sm" data-request-resolve="${request.id}">Resolve</button>`
+            : '';
+        return `<article class="maintenance-request-card" data-request-id="${request.id}">
+          <div class="row between" style="gap:10px; flex-wrap:wrap;">
+            <div><b style="font-size:15px;">Unit ${escapeHtml(request.unit)} — ${escapeHtml(request.title)}</b><p class="fine" style="margin-top:4px;">AI decision: ${decision.battery_pct}% battery · ${decision.trend_start_pct}% → ${decision.trend_end_pct}% across ${decision.reading_count} readings · ${decision.connection_failures} connection failures.</p></div>
+            <div class="row" style="gap:6px;"><span class="tag ${statusClass}"><span class="dot"></span>${escapeHtml(requestStatusText(request))}</span><span class="tag tag-sim"><span class="dot"></span>AI-routed</span></div>
+          </div>
+          <p class="fine" style="margin-top:8px;">${escapeHtml(decision.reason)} Device telemetry is simulated for this demo.</p>
+          ${controls ? `<div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">${controls}</div>` : ''}
+        </article>`;
+      }).join('');
+
+      queue.querySelectorAll<HTMLButtonElement>('[data-request-assign]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const id = Number(button.dataset.requestAssign);
+          button.disabled = true;
+          button.textContent = 'Assigning…';
+          try {
+            await assignMaintenanceRequest(id);
+            window.toast?.('Maintenance request assigned to Facilities technician');
+            window.logActivity?.('Operator assigned AI maintenance request', 'ok');
+            await refresh();
+          } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Assign';
+            window.toast?.(error instanceof Error ? error.message : 'Could not assign request');
+          }
+        });
+      });
+      queue.querySelectorAll<HTMLButtonElement>('[data-request-resolve]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const id = Number(button.dataset.requestResolve);
+          button.disabled = true;
+          button.textContent = 'Resolving…';
+          try {
+            await resolveMaintenanceRequest(id);
+            window.toast?.('Maintenance request resolved; resident status updated');
+            window.logActivity?.('Operator resolved AI maintenance request', 'ok');
+            await refresh();
+          } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Resolve';
+            window.toast?.(error instanceof Error ? error.message : 'Could not resolve request');
+          }
+        });
+      });
+    } catch {
+      queue.innerHTML = '<p class="fine" style="padding:10px 0;">Could not load the operator queue.</p>';
+    }
+  };
+
+  void refresh();
+  const timer = setInterval(() => void refresh(), 5000);
+  return () => { disposed = true; clearInterval(timer); };
 }
 
 function wireInsightPanel() {
@@ -419,10 +511,11 @@ export default function App({ initialRole }: { initialRole?: string } = {}) {
     wireBackendSceneComposer();
     const cleanupSavedScenes = wireSavedScenesLibrary();
     const cleanupInsights = wireInsightPanel();
+    const cleanupMaintenance = wireMaintenanceRequests();
     if (initialRole && initialRole !== 'owner') {
       document.querySelector<HTMLButtonElement>(`#rolePill button[data-role="${initialRole}"]`)?.click();
     }
-    return () => { style.remove(); polish.remove(); font.remove(); cleanupSavedScenes?.(); cleanupInsights?.(); };
+    return () => { style.remove(); polish.remove(); font.remove(); cleanupSavedScenes?.(); cleanupInsights?.(); cleanupMaintenance?.(); };
   }, []);
   return <div ref={host} />;
 }

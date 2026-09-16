@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.entities import AIInsight, Scene
+from app.models.entities import AIInsight, DeviceTelemetry, MaintenanceRequest, Scene
+from app.services.maintenance_service import check_device_health
 
 
 def test_insight_routes_are_registered():
@@ -68,3 +71,33 @@ def test_apply_rejects_unsafe_seeded_action():
         response = client.post(f"/api/insights/{insight_id}/apply")
         assert response.status_code == 422
         assert "not allowed" in response.json()["detail"]
+
+
+def test_critical_battery_creates_and_updates_operator_request():
+    with SessionLocal() as db:
+        base_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        for index, battery in enumerate([48, 41, 33, 24, 10]):
+            db.add(DeviceTelemetry(
+                device_id="lock",
+                event_type="battery",
+                payload={"battery": battery, "connection_failures": 4, "status": "LOCKED"},
+                timestamp=base_time + timedelta(minutes=index),
+            ))
+        db.commit()
+        insight = check_device_health(db, "lock")
+        request = db.query(MaintenanceRequest).one()
+        assert request.status == "open"
+        assert request.decision["battery_pct"] == 10
+        assert request.decision["reading_count"] == 5
+        assert insight.body["maintenance_request"]["id"] == request.id
+
+    with TestClient(app) as client:
+        listed = client.get("/api/maintenance-requests")
+        assert listed.status_code == 200
+        request_id = listed.json()["requests"][0]["id"]
+        assigned = client.post(f"/api/maintenance-requests/{request_id}/assign")
+        assert assigned.json()["status"] == "assigned"
+        resolved = client.post(f"/api/maintenance-requests/{request_id}/resolve")
+        assert resolved.json()["status"] == "resolved"
+        maintenance = next(item for item in client.get("/api/insights").json()["insights"] if item["category"] == "maintenance")
+        assert maintenance["body"]["maintenance_request"]["status"] == "resolved"

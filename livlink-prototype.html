@@ -1074,6 +1074,7 @@
           <div class="eyebrow">Building Operator · Priyantha</div>
           <h2 style="margin-top:4px;">Meridian Residences — Tower B</h2>
           <p class="fine" style="margin-top:6px;">Counts below are a seeded fixture, not a live device fleet.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="window.openOperatorMaintenance()">Open AI maintenance queue</button>
         </div>
 
         <div class="grid cols-3">
@@ -1301,7 +1302,7 @@
   ];
 
   var FLEET = [
-    {did:'LK-1204', unit:'1204', building:'Tower B', device:'Smart Lock', status:'bad', detail:'Battery 8% (10% threshold) · Connection unstable · Last error 10:42 AM'},
+    {did:'LK-1204', unit:'1204', building:'Tower B', device:'Smart Lock', status:'bad', detail:'Battery 10% (10% threshold) · Connection unstable · Last error 10:42 AM'},
     {did:'AC-1204', unit:'1204', building:'Tower B', device:'Air Conditioner', status:'warn', detail:'4.5 kWh vs typical 2.5 kWh over the same 24h period'},
     {did:'DS-0812', unit:'0812', building:'Tower A', device:'Door Sensor', status:'bad', detail:'No heartbeat for 6 hours'},
     {did:'LK-0715', unit:'0715', building:'Tower A', device:'Smart Lock', status:'warn', detail:'Battery 24% · trending down'},
@@ -1316,7 +1317,6 @@
     {unit:'1105', issue:'AC drainage leak', status:'resolved', note:'Reported 3 days ago · resolved today 9:10 AM — resident notified'},
     {unit:'0203', issue:'Intercom static', status:'open', note:'Reported this morning · awaiting technician'}
   ];
-  var mockLowBatteryRequestSent = false;
 
   /* ---------------------------- helpers ---------------------------- */
   function $(sel, root){ return (root||document).querySelector(sel); }
@@ -2613,30 +2613,7 @@
     }).join('');
   }
 
-  function routeMockLowBatteryRequest(){
-    if (mockLowBatteryRequestSent) return false;
-    var lock = FLEET.find(function(device){ return device.did === 'LK-1204'; });
-    if (!lock) return false;
-    var match = lock.detail.match(/Battery\s+(\d+)%/i);
-    var battery = match ? Number(match[1]) : 10;
-    if (battery > 10) return false;
-
-    MAINT.unshift({
-      unit: lock.unit,
-      issue: 'Smart Lock battery critically low ('+battery+'%)',
-      status: 'open',
-      aiRouted: true,
-      note: 'AI detected battery below the 10% threshold · automatically routed to the operator · simulated'
-    });
-    mockLowBatteryRequestSent = true;
-    renderMaint();
-    logActivity('AI maintenance alert — Smart Lock battery at '+battery+'%; operator request created','warn');
-    window.dispatchEvent(new CustomEvent('livlink:mock-maintenance-request', {detail:{unit:lock.unit, device:lock.device, battery:battery}}));
-    return true;
-  }
-
-  window.routeMockLowBatteryRequest = routeMockLowBatteryRequest;
-  window.openMockMaintenanceRequest = function(){
+  window.openOperatorMaintenance = function(){
     setPersona('operator');
     switchOpView('op-maint');
     setTimeout(function(){ $('#maintQueue').scrollIntoView({behavior:'smooth', block:'nearest'}); }, 60);
@@ -2659,7 +2636,6 @@
   renderFleet();
   renderPortfolio();
   renderDevEnergyChart();
-  routeMockLowBatteryRequest();
   renderMaint();
   renderMemberships();
   updateOnCount();

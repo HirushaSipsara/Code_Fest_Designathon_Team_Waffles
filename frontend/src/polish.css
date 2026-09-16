@@ -440,3 +440,15 @@ table.fleet tr:hover td {
   border: 2px dashed var(--border);
   border-radius: var(--radius-s);
 }
+
+/* Backend-owned operator work items. */
+.maintenance-request-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
+}
+.maintenance-request-card + .maintenance-request-card {
+  margin-top: 10px;
+}

@@ -7,7 +7,7 @@ No ML model — honest deterministic scoring for the prototype.
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from app.models.entities import AIInsight, DeviceTelemetry
+from app.models.entities import AIInsight, DeviceTelemetry, MaintenanceRequest
 
 logger = logging.getLogger("livlink.maintenance")
 
@@ -19,6 +19,55 @@ DEVICE_NAMES = {
     "tv": "Television",
     "curtain": "Living Room Curtains",
 }
+
+
+def _upsert_low_battery_request(
+    db: Session,
+    *,
+    device_id: str,
+    battery_pct: int | float,
+    connection_failures: int,
+    battery_values: list[int | float],
+) -> MaintenanceRequest | None:
+    """Create one operator work item for the critical 10% battery demo signal."""
+    if battery_pct > 10:
+        return None
+
+    decision = {
+        "battery_pct": battery_pct,
+        "trend_start_pct": battery_values[-1] if battery_values else battery_pct,
+        "trend_end_pct": battery_pct,
+        "reading_count": len(battery_values),
+        "connection_failures": connection_failures,
+        "reason": "Battery is at or below the 10% threshold.",
+        "simulated": True,
+    }
+    request = (
+        db.query(MaintenanceRequest)
+        .filter(
+            MaintenanceRequest.device_id == device_id,
+            MaintenanceRequest.status.in_(["open", "assigned"]),
+        )
+        .order_by(MaintenanceRequest.created_at.desc())
+        .first()
+    )
+    if request:
+        request.decision = decision
+        request.title = f"{DEVICE_NAMES.get(device_id, device_id)} battery critically low ({battery_pct}%)"
+        return request
+
+    request = MaintenanceRequest(
+        unit="1204",
+        device_id=device_id,
+        device_name=DEVICE_NAMES.get(device_id, device_id),
+        title=f"{DEVICE_NAMES.get(device_id, device_id)} battery critically low ({battery_pct}%)",
+        decision=decision,
+        status="open",
+    )
+    db.add(request)
+    db.flush()
+    logger.info("Created operator maintenance request %s for %s", request.id, device_id)
+    return request
 
 
 def check_device_health(db: Session, device_id: str) -> AIInsight | None:
@@ -62,10 +111,9 @@ def check_device_health(db: Session, device_id: str) -> AIInsight | None:
     score = 0
     factors = []
 
+    actual_decline = 0
     # Battery declining rapidly (difference between oldest and newest > 20 in 5 readings)
     if len(battery_values) >= 3:
-        decline = battery_values[-1] - battery_values[0]  # oldest - newest (readings are desc order, so [0]=newest)
-        # Actually [0] is newest, [-1] is oldest; decline = oldest - newest
         actual_decline = battery_values[-1] - battery_values[0]
         # If oldest is higher than newest, battery is declining
         if actual_decline > 15:
@@ -110,6 +158,14 @@ def check_device_health(db: Session, device_id: str) -> AIInsight | None:
         .first()
     )
 
+    request = _upsert_low_battery_request(
+        db,
+        device_id=device_id,
+        battery_pct=battery_pct,
+        connection_failures=connection_failures,
+        battery_values=battery_values,
+    )
+
     body = {
         "device_name": DEVICE_NAMES.get(device_id, device_id),
         "device_id": device_id,
@@ -119,7 +175,20 @@ def check_device_health(db: Session, device_id: str) -> AIInsight | None:
         "risk_level": risk_level,
         "factors": factors,
         "recommendation": "Schedule a technician to inspect or replace the device battery." if battery_pct < 25 else "Monitor the device closely and check wiring.",
+        "battery_trend": {
+            "start_pct": battery_values[-1] if battery_values else battery_pct,
+            "end_pct": battery_pct,
+            "reading_count": len(battery_values),
+            "decline_pct": actual_decline,
+        },
     }
+    if request:
+        body["maintenance_request"] = {
+            "id": request.id,
+            "status": request.status,
+            "assigned_to": request.assigned_to,
+            "sent_to_operator": True,
+        }
 
     if existing:
         existing.body = body

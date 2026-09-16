@@ -18,6 +18,27 @@ export type AIInsight = {
   created_at: string | null;
 };
 export type MqttStatus = { connected: boolean; events_received: number; transport?: string };
+export type MaintenanceRequest = {
+  id: number;
+  unit: string;
+  device_id: string;
+  device_name: string;
+  title: string;
+  decision: {
+    battery_pct: number;
+    trend_start_pct: number;
+    trend_end_pct: number;
+    reading_count: number;
+    connection_failures: number;
+    reason: string;
+    simulated: boolean;
+  };
+  status: 'open' | 'assigned' | 'resolved';
+  assigned_to: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  resolved_at: string | null;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -38,3 +59,6 @@ export const dismissInsight = (id: number) => request<{ id: number; status: stri
 export const applyInsight = (id: number) => request<{ id: number; name: string; status: string }>(`/insights/${id}/apply`, { method: 'POST', body: '{}' });
 export const getMqttStatus = () => request<MqttStatus>('/mqtt/status');
 export const getTelemetry = (deviceId: string) => request<{ device_id: string; readings: { id: number; event_type: string; payload: Record<string, unknown>; timestamp: string | null }[] }>(`/telemetry/${deviceId}`);
+export const getMaintenanceRequests = () => request<{ requests: MaintenanceRequest[] }>('/maintenance-requests');
+export const assignMaintenanceRequest = (id: number) => request<MaintenanceRequest>(`/maintenance-requests/${id}/assign`, { method: 'POST', body: '{}' });
+export const resolveMaintenanceRequest = (id: number) => request<MaintenanceRequest>(`/maintenance-requests/${id}/resolve`, { method: 'POST', body: '{}' });

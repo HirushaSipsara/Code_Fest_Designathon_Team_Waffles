@@ -68,8 +68,8 @@ async def run_simulator() -> None:
         await bus.publish(DEVICES["bac"], _normal_ac())
         await bus.publish(DEVICES["light"], _normal_light())
 
-        # Lock: degraded every 5th cycle
-        lock_payload = _lock_degraded() if cycle % 5 == 0 else _lock_healthy()
+        # Lock: publish the deterministic 10% demo alert immediately, then every 5th cycle.
+        lock_payload = _lock_degraded() if cycle == 1 or cycle % 5 == 0 else _lock_healthy()
         await bus.publish(DEVICES["lock"], lock_payload)
 
         # Heartbeats every 3rd cycle (skip lock every 6th to simulate missing)

@@ -66,6 +66,22 @@ class AIInsight(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class MaintenanceRequest(Base):
+    """Operator work item created from a critical device-health decision."""
+    __tablename__ = "maintenance_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    unit: Mapped[str] = mapped_column(String(20), default="1204")
+    device_id: Mapped[str] = mapped_column(String(50), index=True)
+    device_name: Mapped[str] = mapped_column(String(100))
+    title: Mapped[str] = mapped_column(String(200))
+    decision: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open, assigned, resolved
+    assigned_to: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ResidentEvent(Base):
     """Resident arrival + action patterns for learned automation."""
     __tablename__ = "resident_events"

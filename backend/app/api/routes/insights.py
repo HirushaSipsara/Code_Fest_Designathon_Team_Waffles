@@ -1,16 +1,53 @@
 """REST API for AI insights, telemetry, and MQTT status."""
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.core.permissions import validate_scene_permission
 from app.db.session import get_db
-from app.models.entities import AIInsight, DeviceTelemetry, Scene
+from app.models.entities import AIInsight, DeviceTelemetry, MaintenanceRequest, Scene
 from app.mqtt.subscriber import mqtt_status
 from app.schemas.scene import SceneProposal
 from app.services.device_service import validate_action
 from app.services.scene_service import save_scene
 
 router = APIRouter(tags=["LIVLINK intelligence"])
+
+
+def _request_payload(request: MaintenanceRequest) -> dict:
+    return {
+        "id": request.id,
+        "unit": request.unit,
+        "device_id": request.device_id,
+        "device_name": request.device_name,
+        "title": request.title,
+        "decision": request.decision,
+        "status": request.status,
+        "assigned_to": request.assigned_to,
+        "created_at": request.created_at.isoformat() if request.created_at else None,
+        "updated_at": request.updated_at.isoformat() if request.updated_at else None,
+        "resolved_at": request.resolved_at.isoformat() if request.resolved_at else None,
+    }
+
+
+def _sync_request_status_to_insights(db: Session, request: MaintenanceRequest) -> None:
+    """Keep the resident explanation aligned with the operator's work item."""
+    for insight in (
+        db.query(AIInsight)
+        .filter(AIInsight.category == "maintenance", AIInsight.device_id == request.device_id)
+        .all()
+    ):
+        body = dict(insight.body or {})
+        linked = body.get("maintenance_request")
+        if linked and linked.get("id") != request.id:
+            continue
+        body["maintenance_request"] = {
+            "id": request.id,
+            "status": request.status,
+            "assigned_to": request.assigned_to,
+            "sent_to_operator": True,
+        }
+        insight.body = body
 
 
 @router.get("/insights")
@@ -137,3 +174,42 @@ def telemetry_summary(db: Session = Depends(get_db)):
 def get_mqtt_status():
     """Return in-process simulated event-stream status and event count."""
     return mqtt_status()
+
+
+@router.get("/maintenance-requests")
+def list_maintenance_requests(db: Session = Depends(get_db)):
+    """Return AI-created operator work items, newest first."""
+    requests = db.query(MaintenanceRequest).order_by(MaintenanceRequest.updated_at.desc(), MaintenanceRequest.id.desc()).all()
+    return {"requests": [_request_payload(request) for request in requests]}
+
+
+@router.post("/maintenance-requests/{request_id}/assign")
+def assign_maintenance_request(request_id: int, db: Session = Depends(get_db)):
+    """Assign an open request to the demo facilities technician."""
+    request = db.get(MaintenanceRequest, request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Maintenance request not found")
+    if request.status == "resolved":
+        raise HTTPException(status_code=409, detail="Resolved requests cannot be assigned")
+    request.status = "assigned"
+    request.assigned_to = "Facilities technician"
+    _sync_request_status_to_insights(db, request)
+    db.commit()
+    db.refresh(request)
+    return _request_payload(request)
+
+
+@router.post("/maintenance-requests/{request_id}/resolve")
+def resolve_maintenance_request(request_id: int, db: Session = Depends(get_db)):
+    """Mark a request resolved after the operator has completed the work."""
+    request = db.get(MaintenanceRequest, request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Maintenance request not found")
+    if request.status == "resolved":
+        raise HTTPException(status_code=409, detail="Request is already resolved")
+    request.status = "resolved"
+    request.resolved_at = datetime.now(timezone.utc)
+    _sync_request_status_to_insights(db, request)
+    db.commit()
+    db.refresh(request)
+    return _request_payload(request)

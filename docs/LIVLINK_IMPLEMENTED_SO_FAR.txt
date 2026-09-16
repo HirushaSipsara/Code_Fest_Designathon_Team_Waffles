@@ -1,0 +1,287 @@
+LIVLINK — IMPLEMENTED SO FAR
+Updated: 17 September 2026
+
+1. PRODUCT OVERVIEW
+
+LIVLINK is an Integrated Smart Living Platform for residents, visitors,
+building operators and property developers. The current prototype combines
+smart-home control, automation scenes, visitor access, tenant permissions,
+building services, billing demonstrations, device monitoring and AI-assisted
+insights in one interface.
+
+
+2. FRONTEND
+
+- React and Vite run the approved LIVLINK HTML prototype without removing its
+  existing screens or interactions.
+- A redesigned login and role-preview screen is included.
+- The generated LIVLINK logo is used on the login screen and main application.
+- Responsive owner, occupier, tenant, visitor, operator and developer views are
+  available.
+- The UI clearly states that the device layer is simulated and that no physical
+  smart-home hardware is connected.
+- Apple-inspired visual polish, accessible focus states, reduced-motion support,
+  responsive layouts and mobile safety rules have been added.
+
+
+3. SMART-HOME DEVICE DEMO
+
+The prototype includes simulated controls for capabilities supported by the UI:
+
+- Air conditioner: on/off and target temperature
+- Lights: on/off and brightness
+- Curtains: open/closed/position
+- Smart lock: lock/unlock
+- Television: on/off
+
+Device commands follow a visible lifecycle:
+
+REQUESTED -> short simulated delay -> ACKNOWLEDGED
+
+The application does not claim that real hardware is connected.
+
+
+4. SCENE MANAGEMENT
+
+- Built-in scenes include Good Morning, Leaving Home, Movie Time and Sleep Mode.
+- Scenes support Run now, Edit, Pause/Resume and Delete controls.
+- Confirmed backend scenes are loaded from the database into the Scenes section.
+- New scenes appear after confirmation without requiring a page reload.
+- Backend scenes can be deleted through the API and removed from the interface.
+- Simulated scene execution shows device acknowledgement feedback.
+
+
+5. NATURAL-LANGUAGE SCENE CREATION
+
+- Residents can describe a desired scene in plain language.
+- A deterministic offline phrase matcher interprets supported requests.
+- Supported requests produce a reviewable scene draft.
+- Device, value and permission checks run before confirmation.
+- The resident must confirm the draft before it is saved or executed.
+- Unsupported or unclear requests fall back to the visual scene builder.
+- Confirmed scenes are persisted in PostgreSQL.
+- A simulated resident-arrival event can trigger a confirmed arrival scene.
+
+This prototype does not use an external LLM or AI API. The current natural-
+language implementation uses a seeded offline matcher with 15 phrase groups.
+
+
+6. AI INTELLIGENCE FEATURES
+
+The Home dashboard contains an AI Intelligence panel backed by the local
+FastAPI application.
+
+Implemented intelligence features:
+
+- Energy anomaly detection compares current consumption with historical usage.
+- Predictive-maintenance scoring considers battery level, battery trend,
+  connection failures, repeated errors and heartbeat gaps.
+- Learned automation counts repeated arrival-and-device-action patterns and can
+  suggest a Welcome Home scene.
+- Natural-language scene creation converts supported phrases into validated
+  automation drafts.
+- Insight cards can be dismissed, and automation suggestions can be accepted.
+- Accepted automation suggestions create saved scenes.
+
+All current analysis is deterministic and offline. This limitation is stated in
+the interface and documentation.
+
+
+7. END-TO-END LOW-BATTERY MAINTENANCE FLOW
+
+The low-battery demonstration now runs through the backend from beginning to
+end:
+
+1. The in-process device simulator publishes a 10% smart-lock battery event.
+2. The event subscriber stores the telemetry in the database.
+3. The maintenance service analyses the latest five battery readings and the
+   current connection-failure count.
+4. When the battery is at or below 10%, the backend creates a persisted operator
+   maintenance request.
+5. The resident insight explains the decision and displays:
+   - Current battery percentage
+   - Battery decline across five readings
+   - Connection failures
+   - Calculated risk
+   - “Request sent to Operator”
+6. The Operator maintenance queue loads the same persisted request.
+7. The operator can Assign or Resolve the request.
+8. Assignment and resolution update the request in the database.
+9. The resident sees the latest request status after the dashboard refreshes.
+
+The automatic action only creates a maintenance work item. It does not unlock,
+control or disable the physical device. The operator keeps control of assignment
+and resolution.
+
+
+8. OPERATOR EXPERIENCE
+
+- Device-fleet overview with normal, warning and critical states
+- Building, device-type and text filters
+- Device-detail inspection
+- Visitor-pass verification simulation
+- Backend-loaded maintenance request queue
+- AI-routed label for automatically created requests
+- Assign action for open requests
+- Resolve action for open or assigned requests
+- Direct “Open AI maintenance queue” button on the Operator overview
+
+
+9. OWNER, OCCUPIER AND TENANT EXPERIENCE
+
+- The role preview supports Owner, Occupier and Tenant views.
+- Owner access opens a dedicated Tenant Access page.
+- The owner can choose a tenancy end date and select the tenant’s permitted
+  feature categories.
+- The UI demonstrates automatic removal of tenant permissions when the tenancy
+  expires.
+- Tenant-access controls are currently a UI-only simulation and do not modify a
+  real identity provider or physical lock.
+- The large decorative background behind the role selector was removed.
+
+
+10. VISITOR AND BUILDING FEATURES
+
+- Visitor pass creation and status displays
+- Lobby verification simulation
+- Expired and rejected pass states
+- Doorbell and visitor-camera demonstrations
+- Building notices
+- Facility booking demonstrations
+- Service and maintenance request form
+- Billing, payment and property-management interface demonstrations
+
+
+11. BACKEND AND DATA
+
+- FastAPI local application API
+- PostgreSQL persistence
+- SQLAlchemy data models
+- Alembic database migrations
+- Stored devices, scene drafts, confirmed scenes, activity events, telemetry,
+  resident events, AI insights and maintenance requests
+- Pydantic request and response validation
+- Deterministic device capability and policy validation
+- Audit/activity logging
+- REST endpoints for devices, scenes, insights, telemetry, simulated arrival,
+  event-stream status and maintenance requests
+
+The latest migration adds the maintenance_requests table.
+
+
+12. SIMULATED EVENT STREAM AND DEVICE ABSTRACTION
+
+The hackathon version uses an in-process asyncio queue. It replaces the need for
+a Mosquitto server while preserving a clear event-publisher/subscriber boundary.
+
+Current architecture:
+
+Simulated Publisher
+  -> In-process Event Bus
+  -> Telemetry Subscriber
+  -> Analysis Services
+  -> PostgreSQL
+  -> FastAPI
+  -> React Frontend
+
+Device-command architecture:
+
+Automation Engine
+  -> DeviceService
+  -> DeviceAdapter interface
+  -> MockDeviceAdapter
+  -> Simulated devices
+
+Future production path:
+
+DeviceService
+  -> MQTTDeviceAdapter
+  -> Real IoT Gateway
+  -> Physical devices
+
+
+13. REAL AND SIMULATED PARTS
+
+REAL IN THE CURRENT DEMO
+
+- React frontend
+- FastAPI backend
+- PostgreSQL persistence
+- Schema validation
+- Device/action validation
+- Permission validation used by the scene workflow
+- Energy calculations
+- Maintenance risk scoring
+- Learned-pattern counting
+- Scene confirmation and persistence
+- Automation engine
+- Maintenance-request persistence
+- Operator Assign/Resolve workflow
+- Audit/activity logging
+
+SEEDED OR SIMULATED
+
+- Smart-home hardware
+- Device telemetry
+- Sensor readings
+- Battery decline
+- Connection failures
+- Resident-arrival events
+- Device acknowledgements
+- Visitor scanner and camera feed
+- Building fleet counts
+- Natural-language intent matching
+- Business-impact assumptions
+
+
+14. DEVELOPER VALUE SLIDE
+
+A PowerPoint slide was created for the final pitch:
+
+docs/LIVLINK_DEVELOPER_VALUE_SLIDE.pptx
+
+It presents an illustrative 200-unit tower pilot model using clearly labelled
+assumptions:
+
+- 12 preventable device issues detected before complaints per month
+- 6 initial diagnostic visits avoided per month
+- 4.5 facilities staff hours saved per month
+
+The slide states that these numbers are assumptions that must be replaced with
+real pilot data before they are used as a commercial forecast.
+
+
+15. VERIFICATION COMPLETED
+
+- Full backend test suite: 21 tests passed
+- TypeScript type check passed
+- Vite production build passed
+- Prototype JavaScript syntax check passed
+- PowerPoint structural validation passed
+- Live local API verified with a persisted 10% battery maintenance request
+- Browser verified the resident explanation and request status
+- Browser verified the Operator queue with Assign and Resolve controls
+
+
+16. RECOMMENDED DEMO SEQUENCE
+
+1. Open Resident Home and show the AI Intelligence panel.
+2. Explain that the telemetry source and devices are simulated.
+3. Show the 10% lock-battery alert and its five-reading decision explanation.
+4. Point to “Request sent to Operator.”
+5. Open the Operator maintenance queue.
+6. Assign the request and show the updated state.
+7. Resolve the request.
+8. Return to Resident Home and show the resolved status.
+9. Open Scenes and create a supported natural-language scene.
+10. Confirm and save it, then show it in the Scenes library.
+11. Simulate resident arrival and show REQUESTED -> ACKNOWLEDGED.
+12. Finish with the developer-value slide and its stated pilot assumptions.
+
+
+17. HONEST DEMO STATEMENT
+
+“The frontend, backend, validation, deterministic intelligence, persistence,
+automation logic and maintenance workflow are running locally. Device telemetry,
+sensors, cameras, smart-home hardware and acknowledgements are simulated because
+physical hardware is not available in the hackathon environment.”
