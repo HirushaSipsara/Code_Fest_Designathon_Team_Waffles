@@ -3,9 +3,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-# The project currently has no package-lock.json. Add one before a production
-# release, then replace this with `npm ci` for fully reproducible builds.
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 COPY . ./
 
