@@ -2,6 +2,12 @@
 
 The approved `livlink-prototype.html` is rendered in full by the React/Vite entry point. This preserves every original persona, screen, control and browser-simulated interaction instead of maintaining a reduced duplicate frontend. The current source also contains the Intelligence panel placeholder; React connects that panel and the existing natural-language scene composer to the local backend.
 
+## Live demo
+
+Open the deployed demo: [http://3.110.83.150](http://3.110.83.150)
+
+The current EC2 demonstration endpoint uses HTTP. The device layer is simulated for this demo.
+
 See [docs/CP3_DEMO.md](docs/CP3_DEMO.md) for the short demonstration and [docs/FRONTEND_ANALYSIS.md](docs/FRONTEND_ANALYSIS.md) for the prototype inventory.
 
 ## Run the CP3 slice
