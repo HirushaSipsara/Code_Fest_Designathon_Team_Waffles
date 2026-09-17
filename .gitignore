@@ -8,3 +8,9 @@ __pycache__/
 .env
 *.log
 *.tsbuildinfo
+infra/aws-ec2/.terraform/
+infra/aws-ec2/*.tfstate
+infra/aws-ec2/*.tfstate.*
+infra/aws-ec2/*.tfplan
+infra/aws-ec2/terraform.tfvars
+.env.deploy

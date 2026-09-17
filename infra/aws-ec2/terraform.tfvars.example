@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars. Do not commit terraform.tfvars.
+aws_region        = "ap-south-1"
+instance_type     = "t3.small"
+postgres_password = "replace-with-a-long-unique-password"
+
+# This must be cloneable by the EC2 instance. Use a public HTTPS repository for
+# the hackathon demo, or replace this delivery method before applying.
+app_repository_url = "https://github.com/HirushaSipsara/Code_Fest_Designathon_Team_Waffles.git"
+app_repository_ref = "main"
+
+# For a judge-facing public demo. Restrict after the event if possible.
+http_ingress_cidr = "0.0.0.0/0"

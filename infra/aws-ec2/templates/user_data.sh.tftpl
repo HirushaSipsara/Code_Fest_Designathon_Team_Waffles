@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y ca-certificates git docker.io docker-compose-v2
+systemctl enable --now docker
+
+install -d -m 0755 /opt/livlink
+git clone --depth 1 --branch "${repository_ref}" "${repository_url}" /opt/livlink
+
+cat > /opt/livlink/.env.deploy <<'ENV'
+POSTGRES_PASSWORD=${postgres_password}
+ENV
+chmod 600 /opt/livlink/.env.deploy
+
+cd /opt/livlink
+docker compose -f docker-compose.prod.yml --env-file .env.deploy up -d --build
